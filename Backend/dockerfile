@@ -20,4 +20,4 @@ COPY . .
 ENV NODE_ENV=production
 ENV PDF_COMPILATION_METHOD=local
 
-CMD ["node", "src/index.js"]
+CMD ["node", "src/index.js"] 
