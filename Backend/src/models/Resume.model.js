@@ -1,0 +1,196 @@
+// src/models/Resume.model.js
+
+import mongoose from 'mongoose';
+
+const resumeSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User', 
+      required: true,
+      index: true,
+    },
+
+    resumeName: {
+      type: String,
+      default: 'My Resume',
+      trim: true,
+    },
+
+    templateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Template',
+      default: null,
+    },
+
+    conversationState: {
+      currentSection: {
+        type: String,
+        enum: ['personal', 'education', 'experience', 'projects', 'skills', 'publications', 'complete'],
+        default: 'personal',
+      },
+      currentField: {
+        type: String,
+        default: 'name',
+      },
+      currentArrayIndex: {
+        type: Number,
+        default: 0,
+      },
+      pendingArrayAddition: {
+        type: Boolean,
+        default: false,
+      },
+      isComplete: {
+        type: Boolean,
+        default: false,
+      },
+    },
+
+    // Stores all chat messages
+    chatHistory: [
+      {
+        role: {
+          type: String,
+          enum: ['user', 'assistant', 'system'],
+          required: true,
+        },
+        content: {
+          type: String,
+          required: true,
+        },
+        timestamp: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    // The actual resume data
+    data: {
+      personal: {
+        name: { type: String, default: '' },
+        location: { type: String, default: '' },
+        email: { type: String, default: '' },
+        phone: { type: String, default: '' },
+        linkedin: { type: String, default: '' },
+        github: { type: String, default: '' },
+        website: { type: String, default: '' },
+      },
+
+      education: [
+        {
+          institution: { type: String, default: '' },
+          degree: { type: String, default: '' },
+          startDate: { type: String, default: '' },
+          endDate: { type: String, default: '' },
+          gpa: { type: String, default: '' },
+          coursework: [{ type: String }],
+        },
+      ],
+
+      experience: [
+        {
+          company: { type: String, default: '' },
+          position: { type: String, default: '' },
+          location: { type: String, default: '' },
+          startDate: { type: String, default: '' },
+          endDate: { type: String, default: '' },
+          highlights: [{ type: String }],
+        },
+      ],
+
+      projects: [
+        {
+          name: { type: String, default: '' },
+          link: { type: String, default: '' },
+          date: { type: String, default: '' },
+          highlights: [{ type: String }],
+          technologies: [{ type: String }],
+        },
+      ],
+
+      skills: {
+        languages: [{ type: String }],
+        technologies: [{ type: String }],
+      },
+
+      publications: [
+        {
+          title: { type: String, default: '' },
+          authors: [{ type: String }],
+          date: { type: String, default: '' },
+          doi: { type: String, default: '' },
+        },
+      ],
+    },
+
+    // Generated files
+    generatedLatex: {
+      type: String,
+      default: '',
+    },
+
+    pdfUrl: {
+      type: String,
+      default: '',
+    },
+
+    // Access control
+    isPublic: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes
+resumeSchema.index({ userId: 1, createdAt: -1 });
+
+// Methods
+resumeSchema.methods.addMessage = function (role, content) {
+  this.chatHistory.push({
+    role,
+    content,
+    timestamp: new Date(),
+  });
+  return this.save();
+};
+
+resumeSchema.methods.isSectionComplete = function (section) {
+  const sectionFields = {
+    personal: ['name', 'location', 'email', 'phone'],
+    education: ['institution', 'degree', 'startDate', 'endDate'],
+    experience: ['company', 'position', 'startDate', 'endDate'],
+    projects: ['name'],
+    skills: ['languages', 'technologies'],
+  };
+
+  const fields = sectionFields[section];
+  if (!fields) return false;
+
+  if (section === 'personal') {
+    return fields.every((field) => this.data.personal[field] && this.data.personal[field].trim() !== '');
+  }
+
+  return this.data[section] && this.data[section].length > 0;
+};
+
+resumeSchema.methods.resetConversation = function () {
+  this.conversationState = {
+    currentSection: 'personal',
+    currentField: 'name',
+    currentArrayIndex: 0,
+    pendingArrayAddition: false,
+    isComplete: false,
+  };
+  this.chatHistory = [];
+  return this.save();
+};
+
+const Resume = mongoose.model('Resume', resumeSchema);
+
+export default Resume;

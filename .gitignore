@@ -1,0 +1,66 @@
+############################
+# Node.js
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+############################
+# Environment variables
+############################
+.env
+.env.*
+!.env.example
+
+############################
+# Build outputs
+############################
+dist/
+build/
+coverage/
+
+############################
+# Docker
+############################
+.dockerignore
+
+############################
+# LaTeX / PDF
+############################
+*.aux
+*.out
+*.log
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+pdfs/
+generated_pdfs/
+temp/
+
+############################
+# Python / venv
+############################
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+############################
+# OS / Editor junk
+############################
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+############################
+# Frontend (Vite / React)
+############################
+ai-resume-frontend/node_modules/
+ai-resume-frontend/dist/
+ai-resume-frontend/.env
