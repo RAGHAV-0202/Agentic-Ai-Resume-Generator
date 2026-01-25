@@ -10,6 +10,7 @@ export const useAuth = () => {
         const fetchUser = async () => {
             try {
                 const response = await isLoggedInAPI();
+                console.log(response)
                 setUser(response.data);
             } catch (error) {
                 setError(error.message);
