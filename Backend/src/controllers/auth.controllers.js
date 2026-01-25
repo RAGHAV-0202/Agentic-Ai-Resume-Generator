@@ -5,7 +5,8 @@ import crypto from "crypto"
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
-
+import dotenv from "dotenv"
+dotenv.config()
 
 const generateAccessTokenRefreshToken = async (userId) => {
     try {
@@ -132,8 +133,8 @@ const isLoggedIn = asyncHandler(async (req, res) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+        console.log(decoded)
         const user = await User.findById(decoded._id)
             .select("-password -refreshToken");
 
