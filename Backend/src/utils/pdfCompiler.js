@@ -66,10 +66,10 @@ export const compilePDFOnline = async (latexString) => {
       contentType: "text/plain",
     });
 
-    const response = await fetch("https://latexonline.cc/compile?target=resume.pdf", {
+    const response = await fetch("https://texlive.net/cgi-bin/latexcgi", {
       method: "POST",
-      body: formData,
-      headers: formData.getHeaders(),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `filecontents[]=${encodeURIComponent(latexString)}&filename[]=resume.tex&engine=pdflatex`
     });
 
     if (!response.ok) {
