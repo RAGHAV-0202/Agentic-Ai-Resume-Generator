@@ -85,9 +85,10 @@ export const sendMessage = asyncHandler(async (req, res) => {
     resume.conversationState;
 
   if (pendingArrayAddition) {
-    const userWantsMore = /yes|yeah|sure|yep|add|more/i.test(message);
+    const isNegative = /no|nope|nah|not|stop|done|finish|skip/i.test(message);
+    const isPositive = /yes|yeah|sure|yep|add|more/i.test(message);
 
-    if (userWantsMore) {
+    if (!isNegative && isPositive) {
       resume.conversationState.currentField = sectionFlow[currentSection][0];
       resume.conversationState.currentArrayIndex += 1;
       resume.conversationState.pendingArrayAddition = false;
