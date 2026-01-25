@@ -4,79 +4,70 @@ dotenv.config()
 import fetch from "node-fetch";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.1-8b-instant"; 
+const GROQ_MODEL = "llama-3.1-8b-instant";
 
+// System prompt that guides the AI based on current state
 // System prompt that guides the AI based on current state
 const getSystemPrompt = (currentSection, currentField, collectedData) => {
   const sectionGuides = {
     personal: {
-      name: "Ask for the user's full name in a friendly way.",
-      location: "Ask where they are currently located (city, state/country).",
-      email: "Ask for their email address.",
+      name: "Ask for the user's full name. Be warm and professional.",
+      location: "Ask for their location (City, Country). Mention this helps match with local recruiters.",
+      email: "Ask for their professional email address.",
       phone: "Ask for their phone number.",
-      linkedin: "Ask if they have a LinkedIn profile (optional). They can skip if they don't have one.",
-      github: "Ask if they have a GitHub profile (optional).",
-      website: "Ask if they have a personal website or portfolio (optional).",
+      linkedin: "Ask for their LinkedIn profile URL. Mention it adds credibility.",
+      github: "Ask for GitHub URL. Great for showcasing code!",
+      website: "Ask for a personal website or portfolio.",
     },
     education: {
-      institution: "Ask what educational institution they attended or are attending.",
-      degree: "Ask what degree and major they are pursuing or completed.",
-      startDate: "Ask when they started (e.g., '2023' or 'Sept 2023').",
-      endDate: "Ask when they graduated or will graduate (e.g., '2027' or 'May 2027').",
-      gpa: "Ask if they want to mention their GPA (optional, can skip).",
-      coursework: "Ask if they want to list relevant coursework (optional).",
+      institution: "Ask for the university or school name.",
+      degree: "Ask for the degree and major (e.g., B.Tech in CSE).",
+      startDate: "Ask for the start date/year.",
+      endDate: "Ask for the graduation date/year (expected is fine).",
+      gpa: "Ask for GPA. Tell them it's optional and fine to skip if they prefer.",
+      coursework: "Ask for relevant coursework. Suggest things like user's major subjects.",
     },
     experience: {
-      company: "Ask what company they worked for.",
-      position: "Ask what their position or role was.",
-      location: "Ask where the job was located (city, state or 'Remote').",
-      startDate: "Ask when they started this position.",
-      endDate: "Ask when they finished (or say 'present' if still working).",
-      highlights: "Ask them to describe their main responsibilities and achievements. They can list multiple points.",
+      company: "Ask for the company name.",
+      position: "Ask what their role/title was.",
+      location: "Ask for the location (or if it was Remote).",
+      startDate: "Ask when they started.",
+      endDate: "Ask when they finished (or if they still work there).",
+      highlights: "Ask for key responsibilities. Encourage them to use action verbs and numbers!",
     },
     projects: {
-      name: "Ask what the project name is.",
-      link: "Ask if they have a link to the project (GitHub, live demo, etc.). Optional.",
-      date: "Ask when they worked on this project.",
-      highlights: "Ask them to describe what the project does and their role.",
-      technologies: "Ask what technologies or tools they used for this project.",
+      name: "Ask for the project name.",
+      link: "Ask for a link (GitHub/Demo).",
+      date: "Ask when they built it.",
+      highlights: "Ask what the project does and what their contribution was.",
+      technologies: "Ask for the tech stack used (e.g., React, Node.js).",
     },
     skills: {
-      languages: "Ask what programming languages they know.",
-      technologies: "Ask what frameworks, technologies, or tools they are familiar with.",
+      languages: "Ask for programming languages they are proficient in.",
+      technologies: "Ask for other tools, frameworks, and libraries they know.",
     },
   };
 
   const currentGuide = sectionGuides[currentSection]?.[currentField] || "Continue the conversation naturally.";
 
-  return `You are a professional, friendly resume-building assistant. Your job is to help users create their resume by asking questions ONE AT A TIME.
+  return `You are "AI Resume Agent", an expert career coach and resume builder. Your goal is to help the user build a winning resume through a friendly, natural conversation.
 
-CURRENT SECTION: ${currentSection}
-CURRENT FIELD: ${currentField}
-
-CURRENT TASK: ${currentGuide}
+CURRENT CONTEXT:
+- **Section**: ${currentSection.toUpperCase()}
+- **Field**: ${currentField.toUpperCase()}
+- **Task**: ${currentGuide}
 
 DATA COLLECTED SO FAR:
 ${JSON.stringify(collectedData, null, 2)}
 
-IMPORTANT RULES:
-1. Ask ONE question at a time - be conversational and friendly
-2. Keep questions short and clear
-3. If the user provides information for the current field, acknowledge it briefly and move on
-4. If user says "skip", "none", or "I don't have one", acknowledge and move to next question
-5. Use a friendly, encouraging tone
-6. Use emojis sparingly (max 1 per message)
-7. Don't repeat information the user already provided
-8. For array fields like highlights or coursework, if user provides comma-separated items, accept them all
+INSTRUCTIONS:
+1. **Be Conversational**: Don't just ask the question. Briefly acknowledge their previous answer (e.g., "That's a great university!", "Python is a very useful language.").
+2. **One Question Only**: Ask exactly ONE question for the current field. Do not overwhelm the user.
+3. **Be Helpful**: Occasionally offer a short 1-sentence tip relevant to the current field (e.g., "Recruiters love quantifiable achievements.").
+4. **Handle Skips**: If they say "skip", "pass", "next", or "later", accept it immediately. Do not pressure them to answer.
+5. **No Repetition**: The user's previous message is in your history. Do not ask for what they just told you.
 
-EXAMPLES:
-- Bad: "What is your full legal name as it appears on official documents?"
-- Good: "What's your full name?"
-
-- Bad: "Please provide your current residential location including city and state."
-- Good: "Where are you located?"
-
-Keep it natural and conversational!`;
+Maintain a professional yet encouraging tone. Make them feel confident!`;
 };
 
 // Get the appropriate question based on state
@@ -178,22 +169,22 @@ export const getAIResponse = async (
   // If asking "add more?" for arrays
   if (currentField === "addMore") {
     if (/yes|yeah|sure|yep|add|more/i.test(userMessage)) {
-      return `Great! Let's add another ${currentSection.slice(0, -1)}. ${getNextQuestion(currentSection, 
+      return `Great! Let's add another ${currentSection.slice(0, -1)}. ${getNextQuestion(currentSection,
         currentSection === "education" ? "institution" :
-        currentSection === "experience" ? "company" :
-        "name"
+          currentSection === "experience" ? "company" :
+            "name"
       )}`;
     } else {
       // Moving to next section
       const sectionOrder = ["personal", "education", "experience", "projects", "skills"];
       const currentIndex = sectionOrder.indexOf(currentSection);
       const nextSection = sectionOrder[currentIndex + 1];
-      
+
       if (nextSection) {
-        const firstField = nextSection === "skills" ? "languages" : 
-                          nextSection === "projects" ? "name" :
-                          nextSection === "experience" ? "company" :
-                          nextSection === "education" ? "institution" : "name";
+        const firstField = nextSection === "skills" ? "languages" :
+          nextSection === "projects" ? "name" :
+            nextSection === "experience" ? "company" :
+              nextSection === "education" ? "institution" : "name";
         return getNextQuestion(nextSection, firstField);
       }
     }
@@ -215,7 +206,6 @@ export const getAIResponse = async (
   const messages = [
     { role: "system", content: systemPrompt },
     ...recentHistory,
-    { role: "user", content: userMessage },
   ];
 
   try {
@@ -242,6 +232,9 @@ export const extractDataFromMessage = async (
     lowerMessage.includes("skip") ||
     lowerMessage.includes("none") ||
     lowerMessage.includes("don't have") ||
+    lowerMessage.includes("pass") ||
+    lowerMessage.includes("later") ||
+    lowerMessage.includes("next") ||
     lowerMessage === "no" ||
     lowerMessage === "n/a"
   ) {
