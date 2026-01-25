@@ -1,10 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
-import { loginAPI } from '../services/auth.api';
 
 function Navbar() {
 
+    const currentUrl = window.location.pathname;
+    console.log(currentUrl)
     
     return (
         <nav className='fixed top-0 left-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/5'>
@@ -20,11 +21,13 @@ function Navbar() {
                 </Link>
 
                 {/* Desktop Navigation */}
+                { currentUrl == "/" && 
                 <div className='hidden md:flex items-center gap-8'>
                     <a href="#features" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Features</a>
                     <a href="#pricing" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Pricing</a>
                     <a href="#templates" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Templates</a>
                 </div>
+                }   
 
                 {/* Auth Buttons */}
                 <div className='flex items-center gap-4'>

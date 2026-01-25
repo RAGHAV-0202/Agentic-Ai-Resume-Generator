@@ -3,6 +3,7 @@ import User from "../models/User.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import Template from "../models/Template.model.js";
 
 
 export const createResume = asyncHandler(async (req, res) => {
@@ -68,7 +69,8 @@ export const getUserResumes = asyncHandler(async (req, res) => {
 
   const resumes = await Resume.find({ userId })
     .sort({ updatedAt: -1 })
-    .select("-chatHistory -generatedLatex"); 
+    .select("-chatHistory -generatedLatex")
+    .populate("templateId"); 
 
   res
     .status(200)
@@ -86,9 +88,9 @@ export const getResumeById = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user._id;
 
-  const resume = await Resume.findOne({ _id: id, userId }); 
+  const resume = await Resume.findOne({ _id: id, userId }).populate("templateId"); 
 
-  if (!resume) {
+  if (!resume) {ß
     throw new ApiError(404, "Resume not found or unauthorized");
   }
 

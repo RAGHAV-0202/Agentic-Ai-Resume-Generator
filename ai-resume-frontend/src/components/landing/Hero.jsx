@@ -1,6 +1,8 @@
 import React from 'react';
 import Button from '../ui/Button';
-
+import ShinyText from '../ui/shinyText.jsx';
+import GradientText from '../ui/gradientText.jsx';
+import ElectricBorder from '../ui/electric.jsx';
 const Hero = () => {
     return (
         <section className='pt-32 pb-20 px-6 relative overflow-hidden'>
@@ -17,11 +19,32 @@ const Hero = () => {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                         </span>
-                        NEW: AI Bullet Point Optimizer
+                            <ShinyText
+                            text="Upcoming : Content Optimizer"
+                            speed={2}
+                            delay={0}
+                            color="#b5b5b5"
+                            shineColor="#ffffff"
+                            spread={120}
+                            direction="left"
+                            yoyo={false}
+                            pauseOnHover={false}
+                            disabled={false}
+                            />
                     </div>
                     <h1 className='text-5xl md:text-6xl font-bold tracking-tight text-white leading-tight'>
                         Your Dream Job, <br />
-                        Built with <span className='text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-500'>AI</span>
+                        Built with 
+                            <span className='text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-500'>
+                                <GradientText
+                                colors={["#5227FF","#FF9FFC","#B19EEF"]}
+                                animationSpeed={8}
+                                showBorder={false}
+                                className="custom-class inline pl-4"
+                                >
+                                AI
+                                </GradientText>
+                            </span>
                     </h1>
                     <p className='text-lg text-slate-400 max-w-xl mx-auto md:mx-0 leading-relaxed'>
                         Generate a professional, ATS-optimized LaTeX resume in minutes. No coding required. Experience the gold standard of document formatting powered by modern AI.
@@ -40,7 +63,7 @@ const Hero = () => {
                                 <div key={i} className={`w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-${600 + i * 100}`}></div>
                             ))}
                         </div>
-                        <p className="text-sm text-slate-500">Joined by 10,000+ professionals this month</p>
+                        <p className="text-sm text-slate-500">Joined by professionals this month</p>
                     </div>
                 </div>
 

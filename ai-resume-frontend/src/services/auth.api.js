@@ -1,17 +1,22 @@
 import api from "./http.js";
 
 
-export const signupAPI = (data) => {
-    return api.post("/api/auth/signup", data)
+export const signupAPI = async(data) => {
+    const response = await api.post("/api/auth/register", data)
+    const at = response.data.data.accessToken
+    localStorage.setItem('accessToken' , at)
+    return response
 }
 
 export const loginAPI = async(data) => {
     const response = await api.post("/api/auth/login", data)
-    console.log(response.cookies)
+    const at = response.data.data.accessToken
+    localStorage.setItem('accessToken' , at)
     return response
 }
 
 export const logoutAPI = () => {
+    localStorage.removeItem('accessToken')
     return api.post("/api/auth/logout")
 }
 
