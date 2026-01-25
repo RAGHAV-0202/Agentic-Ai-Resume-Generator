@@ -9,6 +9,7 @@ import ResumeRouter from "./routes/resume.routes.js"
 import AuthRouter from "./routes/auth.routes.js"
 import ChatRouter from "./routes/chat.routes.js"
 import pdfRoutes from "./routes/pdf.routes.js"
+import templateRoutes from "./routes/template.routes.js"
 
 const app = express()
 app.use(expressStatusMonitor({path : '/dashboard'}))
@@ -55,5 +56,6 @@ app.use("/api/resume" , ResumeRouter)
 app.use("/api/auth" , AuthRouter)
 app.use("/api/chat" , ChatRouter)
 app.use("/api/pdf", pdfRoutes);
+app.use("/api/template" , templateRoutes)
 
 export default app
