@@ -17,7 +17,7 @@ const sectionFlow = {
   skills: ["languages", "technologies"],
 };
 
-const getNextField = (currentSection, currentField, isPendingArray) => {
+const getNextField = (currentSection, currentField, isPendingArray, forceNextSection = false) => {
   if (isPendingArray) {
     return {
       section: currentSection,
@@ -37,7 +37,7 @@ const getNextField = (currentSection, currentField, isPendingArray) => {
     };
   }
 
-  if (["education", "experience", "projects"].includes(currentSection)) {
+  if (!forceNextSection && ["education", "experience", "projects"].includes(currentSection)) {
     return {
       section: currentSection,
       field: "addMore",
@@ -92,7 +92,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
       resume.conversationState.currentArrayIndex += 1;
       resume.conversationState.pendingArrayAddition = false;
     } else {
-      const nextState = getNextField(currentSection, currentField, false);
+      const nextState = getNextField(currentSection, currentField, false, true);
       resume.conversationState.currentSection = nextState.section;
       resume.conversationState.currentField = nextState.field;
       resume.conversationState.currentArrayIndex = 0;
