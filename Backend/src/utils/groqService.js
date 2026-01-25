@@ -166,29 +166,7 @@ export const getAIResponse = async (
     return getNextQuestion("personal", "name");
   }
 
-  // If asking "add more?" for arrays
-  if (currentField === "addMore") {
-    if (/yes|yeah|sure|yep|add|more/i.test(userMessage)) {
-      return `Great! Let's add another ${currentSection.slice(0, -1)}. ${getNextQuestion(currentSection,
-        currentSection === "education" ? "institution" :
-          currentSection === "experience" ? "company" :
-            "name"
-      )}`;
-    } else {
-      // Moving to next section
-      const sectionOrder = ["personal", "education", "experience", "projects", "skills"];
-      const currentIndex = sectionOrder.indexOf(currentSection);
-      const nextSection = sectionOrder[currentIndex + 1];
 
-      if (nextSection) {
-        const firstField = nextSection === "skills" ? "languages" :
-          nextSection === "projects" ? "name" :
-            nextSection === "experience" ? "company" :
-              nextSection === "education" ? "institution" : "name";
-        return getNextQuestion(nextSection, firstField);
-      }
-    }
-  }
 
   // Build conversation context for GROQ
   const systemPrompt = getSystemPrompt(
