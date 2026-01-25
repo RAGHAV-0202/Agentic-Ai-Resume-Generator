@@ -66,7 +66,8 @@ const UserRegister = asyncHandler(async (req, res) => {
                     _id: user._id,
                     name: user.name,
                     email: user.email
-                }
+                },
+                accessToken : accessToken
             }, "Registration successful")
         );
 });
@@ -114,7 +115,8 @@ const UserLogin = asyncHandler(async (req, res) => {
                     _id: user._id,
                     name: user.name,
                     email: user.email
-                }
+                },
+                accessToken : accessToken
             }, "Login successful")
         );
 });
