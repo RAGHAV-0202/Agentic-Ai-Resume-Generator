@@ -78,7 +78,7 @@ const UserLogin = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Email and password are required");
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
         throw new ApiError(400, "Invalid credentials");
     }
@@ -158,7 +158,7 @@ const isLoggedIn = asyncHandler(async (req, res) => {
 });
 
 
-const UserLogout = asyncHandler(async (req, res) => {        
+const UserLogout = asyncHandler(async (req, res) => {
     const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -174,5 +174,5 @@ const UserLogout = asyncHandler(async (req, res) => {
 
 
 export {
-    UserLogin , UserRegister , UserLogout , isLoggedIn
+    UserLogin, UserRegister, UserLogout, isLoggedIn
 }
