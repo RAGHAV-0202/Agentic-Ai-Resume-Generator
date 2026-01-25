@@ -29,7 +29,9 @@ const getNextField = (currentSection, currentField, isPendingArray, forceNextSec
   const fields = sectionFlow[currentSection];
   const currentIndex = fields.indexOf(currentField);
 
-  if (currentIndex < fields.length - 1) {
+  // If currentField is "addMore", we shouldn't look for next field in same section
+  // unless we are actually adding more (handled by caller logic usually, but here we are moving ON)
+  if (currentField !== "addMore" && currentIndex < fields.length - 1) {
     return {
       section: currentSection,
       field: fields[currentIndex + 1],
