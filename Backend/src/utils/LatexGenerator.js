@@ -58,6 +58,25 @@ const handleConditionals = (latex, data) => {
   let result = latex;
 
   // LinkedIn conditional
+
+// In handleConditionals function, add:
+
+// Email conditional
+  if (data.personal?.email && data.personal.email.trim() !== "") {
+    result = result.replace(/{{#IF_EMAIL}}/g, "");
+    result = result.replace(/{{\/IF_EMAIL}}/g, "");
+  } else {
+    result = result.replace(/{{#IF_EMAIL}}[\s\S]*?{{\/IF_EMAIL}}/g, "");
+  }
+
+  // Phone conditional
+  if (data.personal?.phone && data.personal.phone.trim() !== "") {
+    result = result.replace(/{{#IF_PHONE}}/g, "");
+    result = result.replace(/{{\/IF_PHONE}}/g, "");
+  } else {
+    result = result.replace(/{{#IF_PHONE}}[\s\S]*?{{\/IF_PHONE}}/g, "");
+  }
+
   if (data.personal?.linkedin && data.personal.linkedin.trim() !== "") {
     result = result.replace(/{{#IF_LINKEDIN}}/g, "");
     result = result.replace(/{{\/IF_LINKEDIN}}/g, "");
