@@ -6,7 +6,7 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
-} from "../controllers/template.controller.js";
+} from "../controllers/template.controllers.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
