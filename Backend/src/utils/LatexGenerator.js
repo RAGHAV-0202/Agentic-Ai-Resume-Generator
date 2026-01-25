@@ -14,7 +14,7 @@ const escapeLatex = (text) => {
     "^": "\\textasciicircum{}",
   };
 
-  let escaped = text.toString();
+  let escaped = text.toString().trim();
 
   // First escape backslash, then others
   escaped = escaped.replace(/\\/g, replacements["\\"]);
@@ -24,6 +24,9 @@ const escapeLatex = (text) => {
       escaped = escaped.replace(new RegExp("\\" + char, "g"), replacement);
     }
   }
+
+  // Handle newlines
+  escaped = escaped.replace(/\r\n/g, "\n").replace(/\n/g, " \\\\ ");
 
   return escaped;
 };
