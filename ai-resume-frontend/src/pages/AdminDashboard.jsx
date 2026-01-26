@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from "react";
 import {
     getAllUsersAPI,
-    getAllTemplatesAPI, // Need to make sure this is available/imported or just reuse public one? public one is fine.
     uploadTemplateAPI,
     adminLogoutAPI,
     deleteTemplateAPI
