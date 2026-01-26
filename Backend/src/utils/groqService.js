@@ -1,125 +1,15 @@
-import dotenv from "dotenv"
-dotenv.config()
+import dotenv from "dotenv";
+dotenv.config();
 
 import fetch from "node-fetch";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.1-8b-instant";
 
-// System prompt that guides the AI based on current state
-// System prompt that guides the AI based on current state
-const getSystemPrompt = (currentSection, currentField, collectedData) => {
-  const sectionGuides = {
-    personal: {
-      name: "Ask for the user's full name. Be warm and professional.",
-      location: "Ask for their location (City, Country). Mention this helps match with local recruiters.",
-      email: "Ask for their professional email address.",
-      phone: "Ask for their phone number.",
-      linkedin: "Ask for their LinkedIn profile URL. Mention it adds credibility.",
-      github: "Ask for GitHub URL. Great for showcasing code!",
-      website: "Ask for a personal website or portfolio.",
-    },
-    education: {
-      institution: "Ask for the university or school name.",
-      degree: "Ask for the degree and major (e.g., B.Tech in CSE).",
-      startDate: "Ask for the start date/year.",
-      endDate: "Ask for the graduation date/year (expected is fine).",
-      gpa: "Ask for GPA. Tell them it's optional and fine to skip if they prefer.",
-      coursework: "Ask for relevant coursework. Suggest things like user's major subjects.",
-    },
-    experience: {
-      company: "Ask for the company name.",
-      position: "Ask what their role/title was.",
-      location: "Ask for the location (or if it was Remote).",
-      startDate: "Ask when they started.",
-      endDate: "Ask when they finished (or if they still work there).",
-      highlights: "Ask for key responsibilities. Encourage them to use action verbs and numbers!",
-    },
-    projects: {
-      name: "Ask for the project name.",
-      link: "Ask for a link (GitHub/Demo).",
-      date: "Ask when they built it.",
-      highlights: "Ask what the project does and what their contribution was.",
-      technologies: "Ask for the tech stack used (e.g., React, Node.js).",
-    },
-    skills: {
-      languages: "Ask for programming languages they are proficient in.",
-      technologies: "Ask for other tools, frameworks, and libraries they know.",
-    },
-  };
-
-  const currentGuide = sectionGuides[currentSection]?.[currentField] || "Continue the conversation naturally.";
-
-  return `You are "AI Resume Agent", an expert career coach and resume builder. Your goal is to help the user build a winning resume through a friendly, natural conversation.
-
-CURRENT CONTEXT:
-- **Section**: ${currentSection.toUpperCase()}
-- **Field**: ${currentField.toUpperCase()}
-- **Task**: ${currentGuide}
-
-DATA COLLECTED SO FAR:
-${JSON.stringify(collectedData, null, 2)}
-
-INSTRUCTIONS:
-64: 1. **Be Conversational**: Don't just ask the question. Briefly acknowledge their previous answer (e.g., "That's a great university!", "Python is a very useful language.").
-65: 2. **One Question Only**: Ask exactly ONE question for the current field. Do not overwhelm the user.
-66: 3. **Be Helpful**: Occasionally offer a short 1-sentence tip relevant to the current field (e.g., "Recruiters love quantifiable achievements.").
-67: 4. **Handle Skips**: If they say "skip", "pass", "next", or "later", accept it immediately. Do not pressure them to answer.
-68: 5. **No Repetition**: The user's previous message is in your history. Do not ask for what they just told you.
-69: 6. **IGNORE MOCK DATA**: The current data might contain placeholders like "John Doe", "University of California", "Tech Innovations Inc", or "San Francisco". Treat these as EMPTY. Do NOT assume this is the user's real data. ALWAYS ask for their actual name, education, etc., even if the data shows these placeholders.
-70: 
-71: Maintain a professional yet encouraging tone. Make them feel confident!`;
-};
-
-// Get the appropriate question based on state
-const getNextQuestion = (currentSection, currentField) => {
-  const questions = {
-    personal: {
-      name: "Hi! 👋 I'm your resume assistant. Let's build an amazing resume together! First, what's your full name?",
-      location: "Great! Where are you located?",
-      email: "What's the best email address to reach you?",
-      phone: "And your phone number?",
-      linkedin: "Do you have a LinkedIn profile? (You can share the URL or say 'skip')",
-      github: "How about a GitHub profile? (Optional - say 'skip' if you don't have one)",
-      website: "Do you have a personal website or portfolio? (Optional)",
-    },
-    education: {
-      institution: "Perfect! Now let's talk about your education. What institution are you studying at or did you graduate from?",
-      degree: "What degree and major are you pursuing or did you complete?",
-      startDate: "When did you start?",
-      endDate: "When did/will you graduate?",
-      gpa: "Would you like to mention your GPA? (Optional - say 'skip' if you prefer not to)",
-      coursework: "Any relevant coursework you'd like to highlight? (Optional)",
-      addMore: "Would you like to add another degree or education?",
-    },
-    experience: {
-      company: "Great! Now let's add your work experience. What company did you work for?",
-      position: "What was your position or role?",
-      location: "Where was this job located? (City, State or 'Remote')",
-      startDate: "When did you start?",
-      endDate: "When did you finish? (or say 'present' if you're still working there)",
-      highlights: "What were your main responsibilities and achievements? You can list multiple points separated by commas.",
-      addMore: "Would you like to add another work experience?",
-    },
-    projects: {
-      name: "Awesome! Let's showcase your projects. What's the name of a project you're proud of?",
-      link: "Do you have a link to this project? (GitHub, live demo, etc.)",
-      date: "When did you work on this?",
-      highlights: "Describe what the project does and your role in it.",
-      technologies: "What technologies or tools did you use?",
-      addMore: "Would you like to add another project?",
-    },
-    skills: {
-      languages: "Almost done! What programming languages do you know?",
-      technologies: "What frameworks, technologies, or tools are you familiar with?",
-    },
-    complete: "🎉 Awesome! I've collected all your information. Your resume is ready to be generated!",
-  };
-
-  return questions[currentSection]?.[currentField] || "Tell me more.";
-};
-
-const callGroqAPI = async (messages) => {
+/**
+ * Generic function to call Groq API
+ */
+const callGroqAPI = async (messages, jsonMode = false) => {
   try {
     const response = await fetch(GROQ_API_URL, {
       method: "POST",
@@ -130,276 +20,118 @@ const callGroqAPI = async (messages) => {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: messages,
-        temperature: 0.7,
+        temperature: 0.6, // Slightly lower temperature for consistent data extraction
+        response_format: jsonMode ? { type: "json_object" } : undefined,
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`GROQ API error: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`GROQ API error: ${response.status}`);
     const data = await response.json();
     return data.choices[0].message.content;
   } catch (error) {
-    console.error("Content optimizer error:", error);
-    return null; // Fallback to original content
+    console.error("Groq API Error:", error);
+    return null;
   }
-};
-
-
-export const optimizeExperienceHighlight = async (rawHighlight) => {
-  const prompt = `You are a professional resume writer. Rewrite this work achievement to be more impactful and ATS-friendly. Follow these rules:
-
-1. Start with a strong action verb (Led, Developed, Implemented, Achieved, etc.)
-2. Include quantifiable metrics if possible (numbers, percentages, time saved)
-3. Be concise (1-2 lines maximum)
-4. Focus on impact and results
-5. Use professional language
-6. DO NOT add fake numbers - only suggest where metrics could be added
-
-Original: "${rawHighlight}"
-
-Return ONLY the improved version, nothing else.`;
-
-  const messages = [
-    {
-      role: "system",
-      content: "You are an expert resume writer specializing in impactful achievement statements.",
-    },
-    { role: "user", content: prompt },
-  ];
-
-  const optimized = await callGroqAPI(messages);
-  return optimized || rawHighlight; // Fallback to original if optimization fails
 };
 
 /**
- * Optimize project description
+ * THE BRAIN: Analyzes user input, extracts data, and determines intent.
+ * This replaces 'extractDataFromMessage' and rigid flow logic.
  */
-export const optimizeProjectDescription = async (rawDescription) => {
-  const prompt = `You are a professional resume writer. Enhance this project description to highlight technical skills and impact. 
+export const processUserMessage = async (userMessage, currentContext, resumeData) => {
+  const systemPrompt = `
+    You are an expert Resume Architect and Data Extractor.
+    
+    CURRENT CONTEXT:
+    - User is currently focused on: ${currentContext.section} (Field: ${currentContext.field})
+    - Existing Resume Data: ${JSON.stringify(resumeData)}
 
-Rules:
-1. Keep it concise (1-2 sentences)
-2. Emphasize technical skills and technologies
-3. Highlight the problem solved or value created
-4. Use professional but engaging language
-5. DO NOT invent features that weren't mentioned
+    YOUR TASK:
+    Analyze the user's message ("${userMessage}") and return a JSON object with:
+    1. **intent**: What is the user doing? (ANSWERING, SKIPPING, CHANGING_TOPIC, ASKING_HELP)
+    2. **extractedData**: Extract relevant information into the correct schema format.
+    3. **refinedContent**: If the user provided a bullet point or description, rewrite it to be impactful (Action verbs + Metrics).
+    4. **nextSectionSuggestion**: Based on what was filled, what section/field should we discuss next?
 
-Original: "${rawDescription}"
+    SCHEMA RULES:
+    - **Personal**: { "personal": { "name": "...", "email": "..." } }
+    - **Experience**: { "experience": [{ "company": "...", "position": "...", "highlights": ["..."] }] } (If updating existing, try to match context)
+    - **Education**: { "education": [{ "institution": "...", "degree": "..." }] }
+    - **Skills**: { "skills": { "languages": ["..."], "technologies": ["..."] } }
 
-Return ONLY the improved version, nothing else.`;
-
-  const messages = [
+    OUTPUT JSON FORMAT:
     {
-      role: "system",
-      content: "You are an expert at writing compelling project descriptions for technical resumes.",
-    },
-    { role: "user", content: prompt },
-  ];
-
-  const optimized = await callGroqAPI(messages);
-  return optimized || rawDescription;
-};
-
-/**
- * Suggest improvements for a complete section
- */
-export const suggestSectionImprovements = async (section, data) => {
-  if (section === "experience" && data.highlights) {
-    const optimizedHighlights = [];
-    
-    for (const highlight of data.highlights) {
-      const optimized = await optimizeExperienceHighlight(highlight);
-      optimizedHighlights.push(optimized);
+      "intent": "ANSWERING" | "SKIPPING" | "CHANGING_TOPIC" | "ASKING_HELP",
+      "extractedData": {}, 
+      "refinedContent": "Polished version of input if applicable (or null)",
+      "confidence": 0-1
     }
-    
-    return { ...data, highlights: optimizedHighlights };
-  }
-  
-  if (section === "projects" && data.highlights) {
-    const optimizedHighlights = [];
-    
-    for (const highlight of data.highlights) {
-      const optimized = await optimizeProjectDescription(highlight);
-      optimizedHighlights.push(optimized);
-    }
-    
-    return { ...data, highlights: optimizedHighlights };
-  }
-  
-  return data;
-};
-
-export const getAIResponse = async (
-  userMessage,
-  conversationState,
-  collectedData,
-  chatHistory
-) => {
-  const { currentSection, currentField, isComplete } = conversationState;
-
-  if (isComplete) {
-    return "🎉 Awesome! I've collected all your information. Your resume is ready to be generated!";
-  }
-
-  // If this is the start of conversation
-  if (userMessage === "start" || chatHistory.length === 0) {
-    return getNextQuestion("personal", "name");
-  }
-
-  // MOCK DATA TO IGNORE
-  const MOCK_VALUES = [
-    "John Doe", "San Francisco, CA", "john.doe@example.com", "+1 (555) 123-4567",
-    "linkedin.com/in/johndoe", "github.com/johndoe", "johndoe.dev",
-    "University of California, Berkeley", "Bachelor of Science in Computer Science",
-    "Tech Innovations Inc.", "E-Commerce Platform", "Task Management App",
-    "Software Engineer" 
-  ];
-
-  // --- FIX START: Improved Recursive Function ---
-  const cleanseData = (data) => {
-    // 1. Handle null/undefined
-    if (data === null || data === undefined) return "";
-    
-    // 2. Handle Strings
-    if (typeof data === 'string') {
-      if (MOCK_VALUES.some(mock => data.includes(mock))) return "";
-      return data;
-    }
-    
-    // 3. Handle Arrays
-    if (Array.isArray(data)) {
-      return data.map(cleanseData);
-    }
-    
-    // 4. Handle Dates (typeof Date is 'object', but we shouldn't recurse into it)
-    if (data instanceof Date) {
-        return data.toISOString();
-    }
-
-    // 5. Handle Objects
-    if (typeof data === 'object') {
-      const cleaned = {};
-      for (const key in data) {
-        // SAFETY: Only parse own properties to avoid prototype chain recursion
-        if (Object.prototype.hasOwnProperty.call(data, key)) {
-            cleaned[key] = cleanseData(data[key]);
-        }
-      }
-      return cleaned;
-    }
-    
-    return data;
-  };
-
-  // SAFETY STEP: Ensure collectedData is a plain object to prevent circular recursion
-  // If collectedData is a Mongoose doc, this converts it to a plain object.
-  // If it has circular refs, this might throw, but it's safer than infinite recursion.
-  let plainData = collectedData;
-  try {
-    plainData = JSON.parse(JSON.stringify(collectedData));
-  } catch (e) {
-    console.error("Error parsing collectedData:", e);
-    // Fallback: continue with raw data but warn
-  }
-
-  const cleanData = cleanseData(plainData);
-  // --- FIX END ---
-
-  // Build conversation context for GROQ
-  const systemPrompt = getSystemPrompt(
-    currentSection,
-    currentField,
-    cleanData
-  );
-
-  // Keep last 10 messages for context
-  const recentHistory = chatHistory.slice(-10).map((msg) => ({
-    role: msg.role === "assistant" ? "assistant" : "user",
-    content: msg.content,
-  }));
+  `;
 
   const messages = [
     { role: "system", content: systemPrompt },
-    ...recentHistory,
+    { role: "user", content: userMessage },
   ];
 
+  const rawResponse = await callGroqAPI(messages, true);
+  
   try {
-    const aiResponse = await callGroqAPI(messages);
-    return aiResponse;
-  } catch (error) {
-    console.error("GROQ failed, using fallback question");
-    return getNextQuestion(currentSection, currentField);
+    return JSON.parse(rawResponse);
+  } catch (e) {
+    console.error("Failed to parse AI intent", e);
+    // Fallback if JSON fails
+    return { intent: "ANSWERING", extractedData: {}, refinedContent: null };
   }
 };
 
-// Extract data from user message
-export const extractDataFromMessage = async (
-  userMessage,
-  expectedField,
-  currentSection
-) => {
-  // Simple extraction for common cases
-  const lowerMessage = userMessage.toLowerCase();
-
-  // Check if user wants to skip
-  if (
-    lowerMessage.includes("skip") ||
-    lowerMessage.includes("none") ||
-    lowerMessage.includes("don't have") ||
-    lowerMessage.includes("pass") ||
-    lowerMessage.includes("later") ||
-    lowerMessage.includes("next") ||
-    lowerMessage === "no" ||
-    lowerMessage === "n/a"
-  ) {
-    return "SKIP";
+/**
+ * THE VOICE: Generates the conversational response to the user.
+ * This replaces 'getNextQuestion' and 'getSystemPrompt'.
+ */
+export const generateAIResponse = async (processedResult, currentContext, resumeData) => {
+  
+  // 1. Handle Greeting / Start
+  if (processedResult.intent === "GREETING") {
+     const systemPrompt = "You are an enthusiastic expert Resume Coach. Introduce yourself briefly and ask the user for their full name to get started.";
+     const messages = [{ role: "system", content: systemPrompt }];
+     return await callGroqAPI(messages);
   }
 
-  // Use GROQ for intelligent extraction
-  const extractionPrompt = `Extract the ${expectedField} from the following user message. Return ONLY the extracted value, nothing else. No explanations, no formatting, just the raw value.
-
-User message: "${userMessage}"
-
-Expected field: ${expectedField}
-Section: ${currentSection}
-
-Rules:
-- If the field is not clearly mentioned, return "SKIP"
-- For names: extract the full name
-- For emails: extract email address
-- For dates: keep the format as user provided (e.g., "2023", "Jan 2024", "2023-2027")
-- For phone numbers: keep as provided
-- For URLs: extract the full URL or username
-- For lists (highlights, coursework, technologies): return comma-separated values
-- Remove any introductory phrases like "My name is", "I am", etc.
-- Just return the pure value
-
-Examples:
-User: "My name is Raghav Kumar" → Return: "Raghav Kumar"
-User: "I live in Panipat, Haryana" → Return: "Panipat, Haryana"
-User: "raghav@email.com" → Return: "raghav@email.com"
-User: "I worked on building a dashboard, improving performance, and leading a team" → Return: "building a dashboard, improving performance, leading a team"
-User: "skip" → Return: "SKIP"
-
-Now extract from the user message above:`;
-
-  try {
-    const messages = [
-      {
-        role: "system",
-        content:
-          "You are a data extraction assistant. Extract only the requested information, nothing more.",
-      },
-      { role: "user", content: extractionPrompt },
-    ];
-
-    const extracted = await callGroqAPI(messages);
-    return extracted.trim();
-  } catch (error) {
-    console.error("Extraction failed:", error);
-    // Fallback: return the message as-is (better than nothing)
-    return userMessage.trim();
+  // 2. Handle Help
+  if (processedResult.intent === "ASKING_HELP") {
+     // ... existing help logic ...
   }
+
+  // 3. Standard Logic
+  const systemPrompt = `
+    You are a friendly, professional Resume Coach.
+    STATUS:
+    - User Data Just Extracted: ${JSON.stringify(processedResult.extractedData)}
+    - Current Section Focus: ${currentContext.section}
+    - Refined Content: ${processedResult.refinedContent || "None"}
+
+    INSTRUCTIONS:
+    1. Confirm receipt of data warmly.
+    2. If Refined Content exists, ask if they want to use the polished version.
+    3. Look at the resumeData and ask for the next logical missing field.
+  `;
+  
+  const messages = [{ role: "system", content: systemPrompt }];
+  return await callGroqAPI(messages);
+};
+
+/**
+ * OPTIMIZER: Specific helper for polishing bullet points (Optional, can be used by buttons)
+ */
+export const optimizeContent = async (text, type = "experience") => {
+  const prompt = `Rewrite this ${type} description to be ATS-friendly, impactful, and use strong action verbs.
+  Original: "${text}"
+  Return ONLY the rewritten version.`;
+
+  const messages = [
+    { role: "system", content: "You are an expert resume copywriter." },
+    { role: "user", content: prompt },
+  ];
+
+  return await callGroqAPI(messages);
 };

@@ -1,254 +1,75 @@
-// src/controllers/chat.controller.js
-
 import Resume from "../models/Resume.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import {
-  getAIResponse,
-  extractDataFromMessage,
-} from "../utils/groqService.js";
+// Make sure to export generateAIResponse from groqService
+import { processUserMessage, generateAIResponse } from "../utils/groqService.js";
 
 
-const sectionFlow = {
-  personal: ["name", "location", "email", "phone", "linkedin", "github", "website"],
-  education: ["institution", "degree", "startDate", "endDate", "gpa", "coursework"],
-  experience: ["company", "position", "location", "startDate", "endDate", "highlights"],
-  projects: ["name", "link", "date", "highlights", "technologies"],
-  skills: ["languages", "technologies"],
+const mergeData = (target, source) => {
+  for (const key in source) {
+    if (source[key] instanceof Object && key in target && !Array.isArray(source[key])) {
+      Object.assign(source[key], mergeData(target[key], source[key]));
+    } else {
+      // For arrays or primitives, strictly replace or push? 
+      // For this agent, replacing or appending based on logic is better.
+      // Simple override for now:
+      target[key] = source[key];
+    }
+  }
+  return target;
 };
-
-const getNextField = (currentSection, currentField, isPendingArray, forceNextSection = false) => {
-  if (isPendingArray) {
-    return {
-      section: currentSection,
-      field: "addMore",
-      isPending: true,
-    };
-  }
-
-  const fields = sectionFlow[currentSection];
-  const currentIndex = fields.indexOf(currentField);
-
-  // If currentField is "addMore", we shouldn't look for next field in same section
-  // unless we are actually adding more (handled by caller logic usually, but here we are moving ON)
-  if (currentField !== "addMore" && currentIndex < fields.length - 1) {
-    return {
-      section: currentSection,
-      field: fields[currentIndex + 1],
-      isPending: false,
-    };
-  }
-
-  if (!forceNextSection && ["education", "experience", "projects"].includes(currentSection)) {
-    return {
-      section: currentSection,
-      field: "addMore",
-      isPending: true,
-    };
-  }
-
-  const sections = Object.keys(sectionFlow);
-  const sectionIndex = sections.indexOf(currentSection);
-
-  if (sectionIndex < sections.length - 1) {
-    const nextSection = sections[sectionIndex + 1];
-    return {
-      section: nextSection,
-      field: sectionFlow[nextSection][0],
-      isPending: false,
-    };
-  }
-
-  return {
-    section: "complete",
-    field: "complete",
-    isPending: false,
-  };
-};
-
-function shouldAutoRecompile(section, field) {
-  // Only auto-recompile on significant fields
-  const significantFields = {
-    personal: ['name', 'email'],
-    education: ['institution', 'degree'],
-    experience: ['company', 'position'],
-    projects: ['name'],
-  };
-  
-  return significantFields[section]?.includes(field);
-}
 
 export const sendMessage = asyncHandler(async (req, res) => {
-  const { resumeId, message } = req.body;
+  const { resumeId, message } = req.body; // <--- FIX: Extract message
   const userId = req.user._id;
 
-  if (!resumeId || !message) {
-    throw new ApiError(400, "resumeId and message are required");
-  }
+  if (!resumeId || !message) throw new ApiError(400, "Missing parameters");
 
   const resume = await Resume.findOne({ _id: resumeId, userId });
+  if (!resume) throw new ApiError(404, "Resume not found");
 
-  if (!resume) {
-    throw new ApiError(404, "Resume not found or unauthorized");
-  }
-
-  await resume.addMessage("user", message);
-
-  const { currentSection, currentField, pendingArrayAddition } =
-    resume.conversationState;
-
-  if (pendingArrayAddition) {
-    const isNegative = /no|nope|nah|not|stop|done|finish|skip/i.test(message);
-    const isPositive = /yes|yeah|sure|yep|add|more/i.test(message);
-
-    if (!isNegative && isPositive) {
-      resume.conversationState.currentField = sectionFlow[currentSection][0];
-      resume.conversationState.currentArrayIndex += 1;
-      resume.conversationState.pendingArrayAddition = false;
-    } else {
-      const nextState = getNextField(currentSection, currentField, false, true);
-      resume.conversationState.currentSection = nextState.section;
-      resume.conversationState.currentField = nextState.field;
-      resume.conversationState.currentArrayIndex = 0;
-      resume.conversationState.pendingArrayAddition = false;
-    }
-
-    await resume.save();
-
-    // Get AI response for next question
-    const aiResponse = await getAIResponse(
-      message,
-      resume.conversationState,
-      resume.data,
-      resume.chatHistory
-    );
-
-    await resume.addMessage("assistant", aiResponse);
-
-
-    let autoRecompiled = false;
-    if (resume.templateId && shouldAutoRecompile(currentSection, currentField)) {
-      try {
-        const template = await Template.findById(resume.templateId);
-        if (template) {
-          const latexString = generateLatex(template.latexTemplate, resume.data);
-          const pdfBuffer = await compilePDF(latexString, resumeId);
-          savePDF(pdfBuffer, resumeId);
-          resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
-          await resume.save();
-          autoRecompiled = true;
-        }
-      } catch (error) {
-        console.error("Auto-recompile failed:", error);
-        // Don't fail the chat if PDF fails
-      }
-    }  
-
-    res.status(200).json(
-      new ApiResponse(200, {
-        aiMessage: aiResponse,
-        conversationState: resume.conversationState,
-        resumeData: resume.data,
-        extractedData: {
-          field: currentField,
-          value: extractedValue,
-        },
-        isComplete: resume.conversationState.isComplete,
-        pdfRecompiled: autoRecompiled, // ✅ Tell frontend PDF was updated
-      })
-    );
-  };
-
-  // Extract data from user message
-  let extractedValue = await extractDataFromMessage(
-    message,
-    currentField,
-    currentSection
-  );
-
-  // Save extracted data to resume
-  if (extractedValue && extractedValue !== "SKIP") {
-    if (currentSection === "personal") {
-      // Simple field update
-      resume.data.personal[currentField] = extractedValue;
-    } else if (currentSection === "skills") {
-      // Skills are arrays - split by comma
-      const items = extractedValue.split(",").map((s) => s.trim());
-      resume.data.skills[currentField] = items;
-    } else if (["education", "experience", "projects"].includes(currentSection)) {
-      // Array sections - ensure array exists at current index
-      const arrayIndex = resume.conversationState.currentArrayIndex;
-
-      if (!resume.data[currentSection][arrayIndex]) {
-        resume.data[currentSection][arrayIndex] = {};
-      }
-
-      // Special handling for array fields (highlights, coursework, etc.)
-      if (["highlights", "coursework", "technologies"].includes(currentField)) {
-        const items = extractedValue.split(",").map((s) => s.trim());
-        resume.data[currentSection][arrayIndex][currentField] = items;
-      } else {
-        resume.data[currentSection][arrayIndex][currentField] = extractedValue;
-      }
-    }
-  }
-
-  // Get next field
-  const nextState = getNextField(currentSection, currentField, false);
-
-  resume.conversationState.currentSection = nextState.section;
-  resume.conversationState.currentField = nextState.field;
-  resume.conversationState.pendingArrayAddition = nextState.isPending;
-
-  // Check if complete
-  if (nextState.section === "complete") {
-    resume.conversationState.isComplete = true;
-  }
-
-  await resume.save();
-
-  // Get AI response
-  const aiResponse = await getAIResponse(
+  // 1. PROCESS: Ask the "Brain" what the user meant
+  // FIX: Use 'resume' (instance), not 'Resume' (model)
+  const aiAnalysis = await processUserMessage(
     message,
     resume.conversationState,
-    resume.data,
-    resume.chatHistory
+    resume.data
   );
 
-  await resume.addMessage("assistant", aiResponse);
-
-  res.status(200).json(
-    new ApiResponse(200, {
-      aiMessage: aiResponse,
-      conversationState: resume.conversationState,
-      resumeData: resume.data,
-      extractedData: {
-        field: currentField,
-        value: extractedValue,
-      },
-      isComplete: resume.conversationState.isComplete,
-    })
-  );
-});
-
-export const resetConversation = asyncHandler(async (req, res) => {
-  const { resumeId } = req.params;
-  const userId = req.user._id;
-
-  const resume = await Resume.findOne({ _id: resumeId, userId });
-
-  if (!resume) {
-    throw new ApiError(404, "Resume not found or unauthorized");
+  // 2. UPDATE DATA: Apply the extracted JSON to the database
+  if (aiAnalysis.extractedData && Object.keys(aiAnalysis.extractedData).length > 0) {
+    // Merge data safely
+    resume.data = mergeData(resume.data, aiAnalysis.extractedData);
+    
+    // FIX: Mongoose Mixed types require explicit marking to save
+    resume.markModified('data'); 
   }
 
-  await resume.resetConversation();
+  // 3. UPDATE STATE (Optional but recommended)
+  // If the AI suggests we are now talking about "Experience", update state
+  // so the NEXT prompt uses the correct context.
+  if (aiAnalysis.extractedData.experience) resume.conversationState.currentSection = "experience";
+  if (aiAnalysis.extractedData.education) resume.conversationState.currentSection = "education";
+  if (aiAnalysis.extractedData.projects) resume.conversationState.currentSection = "projects";
 
-  res
-    .status(200)
-    .json(
-      new ApiResponse(200, { resume }, "Conversation reset successfully")
-    );
+  // 4. GENERATE REPLY: Ask the "Voice" what to say next
+  const aiReply = await generateAIResponse(
+    aiAnalysis,
+    resume.conversationState,
+    resume.data
+  );
+
+  // 5. SAVE & RESPOND
+  await resume.addMessage("user", message);
+  await resume.addMessage("assistant", aiReply);
+  await resume.save(); // <--- FIX: Save the instance
+
+  res.status(200).json(new ApiResponse(200, {
+    aiMessage: aiReply,
+    updatedData: aiAnalysis.extractedData,
+    conversationState: resume.conversationState
+  }));
 });
 
 
@@ -256,15 +77,8 @@ export const startConversation = asyncHandler(async (req, res) => {
   const { resumeId } = req.body;
   const userId = req.user._id;
 
-  if (!resumeId) {
-    throw new ApiError(400, "resumeId is required");
-  }
-
   const resume = await Resume.findOne({ _id: resumeId, userId });
-
-  if (!resume) {
-    throw new ApiError(404, "Resume not found or unauthorized");
-  }
+  if (!resume) throw new ApiError(404, "Resume not found");
 
   // If conversation already started, return last AI message
   if (resume.chatHistory.length > 0) {
@@ -278,15 +92,23 @@ export const startConversation = asyncHandler(async (req, res) => {
     );
   }
 
-  // Get first AI message
-  const aiResponse = await getAIResponse(
-    "start",
-    resume.conversationState,
-    resume.data,
-    []
+  // --- FIX: Logic for the VERY FIRST message ---
+  // We mock an "empty" analysis to trigger the AI's greeting
+  const initialContext = { 
+    intent: "GREETING", 
+    extractedData: {}, 
+    refinedContent: null 
+  };
+
+  // We ask the AI to generate the first question
+  const aiResponse = await generateAIResponse(
+    initialContext, 
+    resume.conversationState, 
+    resume.data
   );
 
   await resume.addMessage("assistant", aiResponse);
+  await resume.save();
 
   res.status(200).json(
     new ApiResponse(200, {
@@ -295,4 +117,15 @@ export const startConversation = asyncHandler(async (req, res) => {
       resumeData: resume.data,
     })
   );
+});
+
+// Reset logic remains the same...
+export const resetConversation = asyncHandler(async (req, res) => {
+  const { resumeId } = req.params;
+  const userId = req.user._id;
+  const resume = await Resume.findOne({ _id: resumeId, userId });
+  if (!resume) throw new ApiError(404, "Resume not found");
+
+  await resume.resetConversation();
+  res.status(200).json(new ApiResponse(200, { resume }, "Reset successful"));
 });
