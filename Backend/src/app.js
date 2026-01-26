@@ -19,7 +19,7 @@ app.use(cookieParser())
 app.use("/pdfs", express.static("pdfs"))
 
 const corsOptions = {
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173" , "https://agentic-resume.netlify.app"],
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'],
     allowedHeaders: ['Content-type', 'Authorization', 'Cookie'],
     credentials: true
