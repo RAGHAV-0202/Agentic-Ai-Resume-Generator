@@ -3,8 +3,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight } from 'lucide-react';
-import { GetResumeById, StartChat, ChatWithAgent, RecompilePdf, DownloadPdf , ChangeTemplate } from '../services/resume.api';
-import { getAllTemplates  } from '../services/template.api';
+import { GetResumeById, StartChat, ChatWithAgent, RecompilePdf, DownloadPdf, ChangeTemplate } from '../services/resume.api';
+import { getAllTemplates } from '../services/template.api';
 
 const Editor = () => {
     const { id } = useParams();
@@ -29,8 +29,8 @@ const Editor = () => {
             try {
                 // 1. Fetch Resume Detail
                 const resumeRes = await GetResumeById(id);
-                
-                
+
+
                 if (resumeRes.data?.data?.resume) {
                     const resume = resumeRes.data.data.resume;
                     setResumeData(resume.data); // Resume content
@@ -69,14 +69,14 @@ const Editor = () => {
     // Start conversation if not started
     useEffect(() => {
         const initChat = async () => {
-            console.log(messages.length , conversationStarted)
+            console.log(messages.length, conversationStarted)
             if (!loading && messages.length === 0) {
                 try {
                     const startRes = await StartChat({ resumeId: id });
                     if (startRes.data?.data?.aiMessage) {
-                        setMessages([{ 
-                            role: 'assistant', 
-                            content: startRes.data.data.aiMessage 
+                        setMessages([{
+                            role: 'assistant',
+                            content: startRes.data.data.aiMessage
                         }]);
                         setConversationStarted(true);
                     }
@@ -123,9 +123,9 @@ const Editor = () => {
             }
         } catch (error) {
             console.error("Chat error:", error);
-            setMessages(prev => [...prev, { 
-                role: 'assistant', 
-                content: "Sorry, I encountered an error. Please try again." 
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: "Sorry, I encountered an error. Please try again."
             }]);
         } finally {
             setChatLoading(false);
@@ -152,7 +152,7 @@ const Editor = () => {
     const handleDownload = async () => {
         try {
             const response = await DownloadPdf(id);
-            
+
             // Create blob and download
             const blob = new Blob([response.data], { type: 'application/pdf' });
             const url = window.URL.createObjectURL(blob);
@@ -169,9 +169,9 @@ const Editor = () => {
         }
     };
 
-    const changeTemp = async (templateId) =>{
+    const changeTemp = async (templateId) => {
         console.log(templateId)
-        await ChangeTemplate({id , templateId})
+        await ChangeTemplate({ id, templateId })
     }
 
     if (loading) {
@@ -204,15 +204,15 @@ const Editor = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button 
+                    <button
                         onClick={handleRecompile}
                         disabled={recompiling}
                         className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                     >
-                        <RefreshCw size={18} className={recompiling ? 'animate-spin' : ''} /> 
+                        <RefreshCw size={18} className={recompiling ? 'animate-spin' : ''} />
                         {recompiling ? 'Recompiling...' : 'Recompile PDF'}
                     </button>
-                    <button 
+                    <button
                         onClick={handleDownload}
                         className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
                     >
@@ -233,7 +233,7 @@ const Editor = () => {
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                         {templates.map(template => (
-                            <div key={template._id} onClick={()=>changeTemp(template._id)} className="group cursor-pointer">
+                            <div key={template._id} onClick={() => changeTemp(template._id)} className="group cursor-pointer">
                                 <div className="aspect-[3/4] rounded-lg overflow-hidden border border-slate-200 relative">
                                     <img
                                         src={template.thumbnailUrl || "https://placehold.co/300x400/e2e8f0/94a3b8?text=Template"}
@@ -259,125 +259,13 @@ const Editor = () => {
                             />
                         </div>
                     ) : (
-                        // Fallback to HTML preview if no PDF
-                        <div className="bg-white shadow-xl min-h-[1123px] w-[794px] p-12">
-                            {resumeData ? (
-                                <div className="space-y-8 text-slate-800">
-                                    {/* Personal */}
-                                    <div className="text-center border-b pb-6 border-slate-300">
-                                        <h1 className="text-4xl font-serif font-bold text-slate-900 mb-2">
-                                            {resumeData.personal?.name || "Your Name"}
-                                        </h1>
-                                        <div className="text-sm text-slate-600 space-x-3 flex justify-center flex-wrap gap-y-2">
-                                            {resumeData.personal?.location && <span>{resumeData.personal.location}</span>}
-                                            {resumeData.personal?.email && <span>&bull; {resumeData.personal.email}</span>}
-                                            {resumeData.personal?.phone && <span>&bull; {resumeData.personal.phone}</span>}
-                                            {resumeData.personal?.linkedin && <a href={resumeData.personal.linkedin} className="text-blue-600 hover:underline">&bull; LinkedIn</a>}
-                                        </div>
-                                    </div>
-
-                                    {/* Experience */}
-                                    {resumeData.experience?.length > 0 && (
-                                        <section>
-                                            <h2 className="text-sm font-bold tracking-widest uppercase border-b border-slate-300 pb-1 mb-4">Experience</h2>
-                                            <div className="space-y-6">
-                                                {resumeData.experience.map((job, idx) => (
-                                                    <div key={idx}>
-                                                        <div className="flex justify-between items-baseline mb-1">
-                                                            <h3 className="font-bold text-lg">{job.position}</h3>
-                                                            <span className="text-sm font-medium italic">{job.startDate} - {job.endDate}</span>
-                                                        </div>
-                                                        <div className="text-base font-semibold mb-2">
-                                                            {job.company} {job.location && <span className="font-normal">| {job.location}</span>}
-                                                        </div>
-                                                        {job.highlights && (
-                                                            <ul className="list-disc ml-4 space-y-1 text-sm">
-                                                                {Array.isArray(job.highlights) ? (
-                                                                    job.highlights.map((h, i) => <li key={i}>{h}</li>)
-                                                                ) : (
-                                                                    <li>{job.highlights}</li>
-                                                                )}
-                                                            </ul>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </section>
-                                    )}
-
-                                    {/* Education */}
-                                    {resumeData.education?.length > 0 && (
-                                        <section>
-                                            <h2 className="text-sm font-bold tracking-widest uppercase border-b border-slate-300 pb-1 mb-4">Education</h2>
-                                            <div className="space-y-4">
-                                                {resumeData.education.map((edu, idx) => (
-                                                    <div key={idx}>
-                                                        <div className="flex justify-between items-baseline">
-                                                            <h3 className="font-bold">{edu.institution}</h3>
-                                                            <span className="text-sm font-medium italic">{edu.startDate} - {edu.endDate}</span>
-                                                        </div>
-                                                        <div className="text-sm">
-                                                            {edu.degree} {edu.gpa && `| GPA: ${edu.gpa}`}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </section>
-                                    )}
-
-                                    {/* Projects */}
-                                    {resumeData.projects?.length > 0 && (
-                                        <section>
-                                            <h2 className="text-sm font-bold tracking-widest uppercase border-b border-slate-300 pb-1 mb-4">Projects</h2>
-                                            <div className="space-y-4">
-                                                {resumeData.projects.map((proj, idx) => (
-                                                    <div key={idx}>
-                                                        <div className="flex justify-between items-baseline">
-                                                            <h3 className="font-bold">{proj.name}</h3>
-                                                            <span className="text-sm italic">{proj.date}</span>
-                                                        </div>
-                                                        {proj.highlights && (
-                                                            <ul className="list-disc ml-4 text-sm mt-1">
-                                                                {Array.isArray(proj.highlights) ? (
-                                                                    proj.highlights.map((h, i) => <li key={i}>{h}</li>)
-                                                                ) : (
-                                                                    <li>{proj.highlights}</li>
-                                                                )}
-                                                            </ul>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </section>
-                                    )}
-
-                                    {/* Skills */}
-                                    {resumeData.skills && (
-                                        <section>
-                                            <h2 className="text-sm font-bold tracking-widest uppercase border-b border-slate-300 pb-1 mb-4">Skills</h2>
-                                            <div className="space-y-2 text-sm">
-                                                {resumeData.skills.languages?.length > 0 && (
-                                                    <div className="flex gap-4">
-                                                        <span className="font-bold w-32">Languages</span>
-                                                        <span>{resumeData.skills.languages.join(", ")}</span>
-                                                    </div>
-                                                )}
-                                                {resumeData.skills.technologies?.length > 0 && (
-                                                    <div className="flex gap-4">
-                                                        <span className="font-bold w-32">Technologies</span>
-                                                        <span>{resumeData.skills.technologies.join(", ")}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </section>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                    <FileText size={48} className="mb-4 opacity-50" />
-                                    <p>Start chatting to build your resume</p>
-                                </div>
-                            )}
+                        // Loading state for PDF generation
+                        <div className="bg-white shadow-xl w-[794px] h-[1123px] flex flex-col items-center justify-center p-12 text-slate-400">
+                            <div className="animate-spin mb-4">
+                                <Loader2 size={48} className="text-blue-500" />
+                            </div>
+                            <p className="text-lg font-medium text-slate-600">Generating your resume PDF...</p>
+                            <p className="text-sm mt-2">This usually takes a few seconds.</p>
                         </div>
                     )}
                 </main>
@@ -402,16 +290,14 @@ const Editor = () => {
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
                         {messages.map((msg, index) => (
                             <div key={index} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                                    msg.role === 'user' ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white shadow-md'
-                                }`}>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white shadow-md'
+                                    }`}>
                                     {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                                 </div>
-                                <div className={`max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed shadow-sm ${
-                                    msg.role === 'user'
+                                <div className={`max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed shadow-sm ${msg.role === 'user'
                                         ? 'bg-blue-600 text-white rounded-tr-none'
                                         : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
-                                }`}>
+                                    }`}>
                                     {msg.content.split('\n').map((line, i) => (
                                         <p key={i} className="mb-1 last:mb-0">{line}</p>
                                     ))}

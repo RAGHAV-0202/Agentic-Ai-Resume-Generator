@@ -61,13 +61,14 @@ DATA COLLECTED SO FAR:
 ${JSON.stringify(collectedData, null, 2)}
 
 INSTRUCTIONS:
-1. **Be Conversational**: Don't just ask the question. Briefly acknowledge their previous answer (e.g., "That's a great university!", "Python is a very useful language.").
-2. **One Question Only**: Ask exactly ONE question for the current field. Do not overwhelm the user.
-3. **Be Helpful**: Occasionally offer a short 1-sentence tip relevant to the current field (e.g., "Recruiters love quantifiable achievements.").
-4. **Handle Skips**: If they say "skip", "pass", "next", or "later", accept it immediately. Do not pressure them to answer.
-5. **No Repetition**: The user's previous message is in your history. Do not ask for what they just told you.
-
-Maintain a professional yet encouraging tone. Make them feel confident!`;
+64: 1. **Be Conversational**: Don't just ask the question. Briefly acknowledge their previous answer (e.g., "That's a great university!", "Python is a very useful language.").
+65: 2. **One Question Only**: Ask exactly ONE question for the current field. Do not overwhelm the user.
+66: 3. **Be Helpful**: Occasionally offer a short 1-sentence tip relevant to the current field (e.g., "Recruiters love quantifiable achievements.").
+67: 4. **Handle Skips**: If they say "skip", "pass", "next", or "later", accept it immediately. Do not pressure them to answer.
+68: 5. **No Repetition**: The user's previous message is in your history. Do not ask for what they just told you.
+69: 6. **IGNORE MOCK DATA**: The current data might contain placeholders like "John Doe", "University of California", "Tech Innovations Inc", or "San Francisco". Treat these as EMPTY. Do NOT assume this is the user's real data. ALWAYS ask for their actual name, education, etc., even if the data shows these placeholders.
+70: 
+71: Maintain a professional yet encouraging tone. Make them feel confident!`;
 };
 
 // Get the appropriate question based on state
