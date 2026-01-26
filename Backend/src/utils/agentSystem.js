@@ -305,7 +305,7 @@ Generate a natural, friendly question for the ${nextField.field} field.`;
       let isMissing = false;
 
       if (section === "personal") {
-        isMissing = !collectedData.personal?.[field] || collectedData.personal[field].trim() === "";
+        isMissing = !collectedData.personal?.[field] || String(collectedData.personal[field]).trim() === "";
       } else if (section === "skills") {
         isMissing = !collectedData.skills?.[field] || collectedData.skills[field].length === 0;
       } else if (section === "achievements") {
@@ -316,7 +316,7 @@ Generate a natural, friendly question for the ${nextField.field} field.`;
           isMissing = true;
         } else {
           const entry = sectionData[arrayIndex || 0];
-          if (!entry || !entry[field] || (Array.isArray(entry[field]) && entry[field].length === 0) || entry[field].trim() === "") {
+          if (!entry || !entry[field] || (Array.isArray(entry[field]) && entry[field].length === 0) || String(entry[field]).trim() === "") {
             isMissing = true;
           }
         }
@@ -362,7 +362,7 @@ Generate a natural, friendly question for the ${nextField.field} field.`;
         updatedData.achievements.push(...items);
       } else if (["education", "experience", "projects"].includes(section)) {
         updatedData[section] = updatedData[section] || [];
-        
+
         // Ensure entry exists
         while (updatedData[section].length <= arrayIndex) {
           updatedData[section].push({});

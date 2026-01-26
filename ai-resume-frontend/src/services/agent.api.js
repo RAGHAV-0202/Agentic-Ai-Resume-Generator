@@ -1,11 +1,11 @@
 import api from "./http";
 
-export const StartAgentChat = (data) => api.post('/agent/start', data);
+export const StartAgentChat = (data) => api.post('api/agent/start', data);
 
-export const MsgAgent = (data) => api.post('/agent/message', data);
+export const MsgAgent = (data) => api.post('api/agent/message', data);
 
 export const UpdateResumeData = (data) => api.post('/agent/update', data);
 
-export const GetAgentStatus = (resumeId) => api.get(`/agent/status/${resumeId}`);
+export const GetAgentStatus = (resumeId) => api.get(`api/agent/status/${resumeId}`);
 
-export const ResetAgentChat = (resumeId) => api.post(`/agent/reset/${resumeId}`);
+export const ResetAgentChat = (resumeId) => api.post(`api/agent/reset/${resumeId}`);
