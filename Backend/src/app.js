@@ -14,7 +14,7 @@ import AdminRouter from "./routes/admin.routes.js"
 
 const app = express()
 app.use(expressStatusMonitor({ path: '/dashboard' }))
-app.use(express.json({ limit: "200kb" }))
+app.use(express.json({ limit: "500kb" }))
 app.use(cookieParser())
 app.use("/pdfs", express.static("pdfs"))
 

@@ -71,6 +71,15 @@ export const createTemplate = asyncHandler(async (req, res) => {
     optionalFields,
   } = req.body;
 
+  console.log({
+    name,
+    slug,
+    description,
+    latexTemplate,
+    requiredFields,
+    optionalFields,
+  })
+
   if (!name || !slug || !latexTemplate) {
     throw new ApiError(400, "Name, slug, and latexTemplate are required");
   }
@@ -89,6 +98,8 @@ export const createTemplate = asyncHandler(async (req, res) => {
       thumbnailUrl = uploadedImage.secure_url;
     }
   }
+
+  console.log(thumbnailUrl)
 
   const newTemplate = await Template.create({
     name,
