@@ -15,7 +15,6 @@ const Templates = () => {
         const fetchTemplates = async () => {
             try {
                 const response = await getAllTemplates();
-                console.log(response)
                 // Handle various response structures to be robust
                 let templatesData = [];
                 if (response.data?.data?.templates && Array.isArray(response.data.data.templates)) {

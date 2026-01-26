@@ -2,25 +2,29 @@ import React from 'react';
 import { Check, ArrowRight } from 'lucide-react';
 import { CreateResumeSession } from '../services/resume.api';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 
 const TemplateCard = ({ template }) => {
-    console.log(template)
     const navigate = useNavigate();
+    const [loading , setLoading] = useState(false)
 
     const handleUseTemplate = async () => {
+        setLoading(true)
         try {
             // Assuming CreateResumeSession takes a templateId
             // This logic might need adjustment based on exact API requirements verified later, 
             // relying on current understanding of resume.api.js
             const response = await CreateResumeSession({ templateId: template._id });
-            if (response.data && response.data.data) {
+            console.log(response.status)
+            if (response.status == 201) {
                 // Navigate to editor with new resume ID
-                navigate(`/editor/${response.data.data._id}`);
+                navigate(`/editor/${response.data.data.resumeId}`);
             }
         } catch (error) {
             console.error("Failed to create resume from template", error);
             // Optionally show error toast here
         }
+        setLoading(false)
     };
 
     return (
@@ -36,12 +40,21 @@ const TemplateCard = ({ template }) => {
 
                 {/* Overlay Button */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    { !loading &&
                     <button
                         onClick={handleUseTemplate}
                         className="bg-blue-600 text-white px-6 py-2.5 rounded-full font-medium transform translate-y-4 group-hover:translate-y-0 transition-transform shadow-lg flex items-center gap-2"
                     >
                         Use Template <ArrowRight size={16} />
                     </button>
+                    }
+                    { loading &&
+                    <button
+                        className="bg-blue-600 disabled text-white px-6 py-2.5 rounded-full font-medium transform translate-y-4 group-hover:translate-y-0 transition-transform shadow-lg flex items-center gap-2"
+                    >
+                        Creating <ArrowRight size={16} />
+                    </button>
+                    }
                 </div>
             </div>
 
@@ -58,12 +71,22 @@ const TemplateCard = ({ template }) => {
                 <p className="text-slate-500 text-sm mb-4 line-clamp-2">{template.description || "A professional template suitable for all industries."}</p>
 
                 <div className="mt-auto pt-4 border-t border-slate-100">
+                    { !loading && 
                     <button
                         onClick={handleUseTemplate}
                         className="w-full py-2 text-center text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                         Select Template
                     </button>
+                    }
+                    { loading && 
+                    <button
+                        onClick={handleUseTemplate}
+                        className="w-full py-2 text-center text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                       Creating...
+                    </button>
+                    }
                 </div>
             </div>
         </div>

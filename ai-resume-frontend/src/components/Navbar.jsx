@@ -5,7 +5,6 @@ import Button from '../components/ui/Button';
 function Navbar() {
 
     const currentUrl = window.location.pathname;
-    console.log(currentUrl)
     
     return (
         <nav className='fixed top-0 left-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/5'>

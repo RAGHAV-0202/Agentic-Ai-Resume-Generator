@@ -69,7 +69,8 @@ const Editor = () => {
     // Start conversation if not started
     useEffect(() => {
         const initChat = async () => {
-            if (!loading && !conversationStarted && messages.length === 0) {
+            console.log(messages.length , conversationStarted)
+            if (!loading && messages.length === 0) {
                 try {
                     const startRes = await StartChat({ resumeId: id });
                     if (startRes.data?.data?.aiMessage) {

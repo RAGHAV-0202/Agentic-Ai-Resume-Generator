@@ -37,7 +37,7 @@ export const RecompilePdf = (resumeId) => { // ✅ NEW - for manual recompile
 }
 
 export const DownloadPdf = (resumeId) => { // ✅ NEW - for download
-    return api.get(`/api/pdf/download/${resumeId}`, {
+    return api.post(`/api/pdf/generate/${resumeId}`, {
         responseType: 'blob' // Important for file download
     })
 }
