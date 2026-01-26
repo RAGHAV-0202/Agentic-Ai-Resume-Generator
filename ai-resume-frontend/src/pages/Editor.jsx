@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight } from 'lucide-react';
-import { GetResumeById, StartChat, ChatWithAgent, RecompilePdf, DownloadPdf, ChangeTemplate } from '../services/resume.api';
+import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate } from '../services/resume.api';
+import { StartAgentChat, MsgAgent } from '../services/agent.api';
 import { getAllTemplates } from '../services/template.api';
 import { GridScan } from '../components/ui/gridScan';
 import DotGrid from '../components/ui/dotGrid';
@@ -77,7 +78,7 @@ const Editor = () => {
             console.log(messages.length, conversationStarted)
             if (!loading && messages.length === 0) {
                 try {
-                    const startRes = await StartChat({ resumeId: id });
+                    const startRes = await StartAgentChat({ resumeId: id });
                     if (startRes.data?.data?.aiMessage) {
                         setMessages([{
                             role: 'assistant',
@@ -108,7 +109,7 @@ const Editor = () => {
         setChatLoading(true);
 
         try {
-            const response = await ChatWithAgent({ resumeId: id, message: userMsg });
+            const response = await MsgAgent({ resumeId: id, message: userMsg });
 
             if (response.data?.data) {
                 const { aiMessage, resumeData: updatedResumeData, pdfRecompiled } = response.data.data;
@@ -252,14 +253,13 @@ const Editor = () => {
                 <main className="flex-1 overflow-y-auto bg-slate-100 p-8 flex justify-center">
                     {pdfUrl && (
                         <div className="relative bg-white shadow-xl w-[794px] h-[1123px] overflow-hidden">
-                            
+
                             {/* PDF Iframe */}
                             <iframe
                                 // ADDED: #toolbar=0&navpanes=0&scrollbar=0&view=FitH
                                 src={`${pdfUrl}?t=${pdfTimestamp}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                                className={`w-full h-full border-none transition-opacity duration-300 ${
-                                    pdfLoading ? 'opacity-0' : 'opacity-100'
-                                }`}
+                                className={`w-full h-full border-none transition-opacity duration-300 ${pdfLoading ? 'opacity-0' : 'opacity-100'
+                                    }`}
                                 onLoad={() => setPdfLoading(false)}
                                 title="Resume Preview"
                                 // ADDED: scroll attribute for older browsers
