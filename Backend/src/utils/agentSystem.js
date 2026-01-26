@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.1-70b-versatile"; // Using larger model for better intelligence
+const GROQ_MODEL = "openai/gpt-oss-120b"; // Using larger model for better intelligence
 
 // ============================================================================
 // AGENT SYSTEM - Intelligent Resume Builder
@@ -40,6 +40,8 @@ class ResumeAgent {
         },
         body: JSON.stringify(payload),
       });
+
+
 
       if (!response.ok) {
         throw new Error(`Groq API error: ${response.status}`);
@@ -222,7 +224,7 @@ DATA COLLECTED SO FAR:
 ${JSON.stringify(collectedData, null, 2)}
 
 INSTRUCTIONS:
-1. **Be conversational and warm**: Acknowledge their previous answer if applicable
+1. **Be conversational and warm**: Acknowledge their previous answer if applicable but dont make message long
 2. **Ask ONE clear question** for the next field needed
 3. **Provide context**: Briefly explain why this field is important
 4. **Give examples** when helpful (e.g., "like Python, JavaScript")
@@ -230,12 +232,12 @@ INSTRUCTIONS:
 6. **Use emojis sparingly** to keep it friendly
 7. **Be encouraging**: Make them feel confident
 
-Generate a natural, friendly question for the ${nextField.field} field.`;
+Generate a short, punchy question for the ${nextField.field} field.`;
 
     const messages = [
       {
         role: "system",
-        content: "You are a friendly AI resume coach. Be conversational, encouraging, and helpful.",
+        content: "You are a friendly AI resume coach. You speak in short, concise sentences. No long paragraphs.",
       },
       { role: "user", content: prompt },
     ];
@@ -256,6 +258,15 @@ Generate a natural, friendly question for the ${nextField.field} field.`;
    * Analyze what fields are missing in order of priority
    */
   analyzeMissingFields(collectedData) {
+    const MOCK_VALUES = [
+      "John Doe", "john.doe@example.com", "+1 (555) 123-4567", "San Francisco, CA", "linkedin.com/in/johndoe", "github.com/johndoe", "johndoe.dev",
+      "University of California, Berkeley", "Bachelor of Science in Computer Science",
+      "Tech Innovations Inc.", "Software Engineer",
+      "E-Commerce Platform", "Task Management App"
+    ];
+
+    const isMock = (val) => MOCK_VALUES.includes(val);
+
     const fieldDefinitions = [
       // Personal Info (Required)
       { section: "personal", field: "name", description: "Full name", required: true },
@@ -304,19 +315,26 @@ Generate a natural, friendly question for the ${nextField.field} field.`;
 
       let isMissing = false;
 
+
+
       if (section === "personal") {
-        isMissing = !collectedData.personal?.[field] || String(collectedData.personal[field]).trim() === "";
+        const val = collectedData.personal?.[field];
+        isMissing = !val || val === "undefined" || String(val).trim() === "" || isMock(val);
       } else if (section === "skills") {
         isMissing = !collectedData.skills?.[field] || collectedData.skills[field].length === 0;
       } else if (section === "achievements") {
         isMissing = !collectedData.achievements || collectedData.achievements.length === 0;
       } else if (isArray) {
         const sectionData = collectedData[section];
+        // console.log(`[Agent-Debug] Section ${section} data:`, JSON.stringify(sectionData));
         if (!sectionData || sectionData.length === 0) {
           isMissing = true;
         } else {
           const entry = sectionData[arrayIndex || 0];
-          if (!entry || !entry[field] || (Array.isArray(entry[field]) && entry[field].length === 0) || String(entry[field]).trim() === "") {
+          const val = entry?.[field];
+          // console.log(`[Agent-Debug] Checking ${section}[${arrayIndex}].${field}. Value: '${val}'`);
+
+          if (!entry || !val || val === "undefined" || (Array.isArray(val) && val.length === 0) || String(val).trim() === "" || isMock(val)) {
             isMissing = true;
           }
         }
@@ -324,9 +342,11 @@ Generate a natural, friendly question for the ${nextField.field} field.`;
 
       // Only add required fields or first optional field per section
       if (isMissing && (fieldDef.required || missingFields.filter(f => f.section === section).length === 0)) {
+
         missingFields.push(fieldDef);
       }
     }
+
 
     return missingFields;
   }
