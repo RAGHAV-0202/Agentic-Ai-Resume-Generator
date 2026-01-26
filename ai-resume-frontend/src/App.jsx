@@ -6,6 +6,8 @@ import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import Templates from './pages/Templates'
 import Editor from './pages/Editor'
+import AdminLogin from './pages/AdminLogin'
+import AdminDashboard from './pages/AdminDashboard'
 
 function App() {
     return (
@@ -18,6 +20,10 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/templates" element={<Templates />} />
                 <Route path="/editor/:id" element={<Editor />} />
+
+                {/* Admin Routes */}
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
             </Routes>
         </Router>
     )
