@@ -190,7 +190,7 @@ export const setResumeTemplate = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Template ID is required");
   }
 
-  const resume = await Resume.findOne({ _id: id, userId });
+  const resume = await Resume.findOne({ _id: id, userId }).select("templateId");
 
   if (!resume) {
     throw new ApiError(404, "Resume not found or unauthorized");

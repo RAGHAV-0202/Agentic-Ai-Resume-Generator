@@ -169,8 +169,9 @@ const Editor = () => {
         }
     };
 
-    const changeTemp = async (id) =>{
-        await ChangeTemplate(id)
+    const changeTemp = async (templateId) =>{
+        console.log(templateId)
+        await ChangeTemplate({id , templateId})
     }
 
     if (loading) {

@@ -16,8 +16,8 @@ export const DeleteResume = (id) => {
     return api.delete(`/api/resume/${id}`)
 }
 
-export const ChangeTemplate = (id) => {
-    return api.put(`/api/resume/${id}/template`)
+export const ChangeTemplate = ({id , templateId}) => {
+    return api.put(`/api/resume/${id}/template` , {templateId})
 }
 
 export const StartChat = (data) => {
