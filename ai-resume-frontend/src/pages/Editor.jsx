@@ -61,7 +61,7 @@ const Editor = () => {
                 }
             } catch (error) {
                 console.error("Error loading editor:", error);
-                alert("Failed to load resume. Redirecting to dashboard.");
+                // alert("Failed to load resume. Redirecting to dashboard.");
                 navigate('/dashboard');
             } finally {
                 setLoading(false);

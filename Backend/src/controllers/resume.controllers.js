@@ -73,6 +73,11 @@ export const createResume = asyncHandler(async (req, res) => {
         technologies: ["Vue.js", "Firebase", "Tailwind CSS"],
       },
     ],
+    achievements: [
+        "Winner of the 2023 Global Hackathon (1st out of 500+ teams)",
+        "Dean's List for 4 consecutive semesters (Top 5% of class)",
+        "Solved 300+ Algorithmic problems on LeetCode"
+    ],
     skills: {
       languages: ["JavaScript", "Python", "Java", "TypeScript"],
       technologies: ["React", "Node.js", "Express", "MongoDB", "PostgreSQL", "Docker", "AWS"],

@@ -69,6 +69,14 @@ const handleConditionals = (latex, data) => {
     result = result.replace(/{{#IF_EMAIL}}[\s\S]*?{{\/IF_EMAIL}}/g, "");
   }
 
+  if (data.achievements && data.achievements.length > 0) {
+    result = result.replace(/{{#IF_ACHIEVEMENTS}}/g, "");
+    result = result.replace(/{{\/IF_ACHIEVEMENTS}}/g, "");
+  } else {
+    // If empty, remove the entire block
+    result = result.replace(/{{#IF_ACHIEVEMENTS}}[\s\S]*?{{\/IF_ACHIEVEMENTS}}/g, "");
+  }
+
   // Phone conditional
   if (data.personal?.phone && data.personal.phone.trim() !== "") {
     result = result.replace(/{{#IF_PHONE}}/g, "");
@@ -184,10 +192,27 @@ const populateEducation = (latex, educationArray) => {
 
   return latex.replace(blockRegex, educationLatex);
 };
+const populateAchievements = (latex, achievementsArray) => {
+  // Regex to find the block {{#ACHIEVEMENTS}} ... {{/ACHIEVEMENTS}}
+  const blockRegex = /{{#ACHIEVEMENTS}}([\s\S]*?){{\/ACHIEVEMENTS}}/;
+  const match = latex.match(blockRegex);
 
-/**
- * Populate experience array
- */
+  if (!match || !achievementsArray || achievementsArray.length === 0) {
+    return latex.replace(blockRegex, "");
+  }
+
+  const blockTemplate = match[1]; 
+  let achievementsLatex = "";
+
+  achievementsArray.forEach((item) => {
+    // Replace {{{.}}} with the actual text
+    // Note: We use 3 curly braces {{{.}}} in the template for the item
+    let entry = blockTemplate.replace(/{{{\.}}}/g, escapeLatex(item));
+    achievementsLatex += entry;
+  });
+
+  return latex.replace(blockRegex, achievementsLatex);
+};
 const populateExperience = (latex, experienceArray) => {
   const blockRegex = /{{#EXPERIENCE}}([\s\S]*?){{\/EXPERIENCE}}/;
   const match = latex.match(blockRegex);
@@ -228,9 +253,7 @@ const populateExperience = (latex, experienceArray) => {
   return latex.replace(blockRegex, experienceLatex);
 };
 
-/**
- * Populate projects array
- */
+
 const populateProjects = (latex, projectsArray) => {
   const blockRegex = /{{#PROJECTS}}([\s\S]*?){{\/PROJECTS}}/;
   const match = latex.match(blockRegex);
@@ -335,6 +358,7 @@ export const generateLatex = (templateString, resumeData) => {
   latex = populateExperience(latex, resumeData.experience);
   latex = populateProjects(latex, resumeData.projects);
   latex = populateSkills(latex, resumeData.skills);
+  latex = populateAchievements(latex, resumeData.achievements);
 
   // Step 4: Clean up any remaining placeholders
   latex = latex.replace(/{{.*?}}/g, "");

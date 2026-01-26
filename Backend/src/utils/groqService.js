@@ -43,29 +43,32 @@ export const processUserMessage = async (userMessage, currentContext, resumeData
     You are an expert Resume Architect and Data Extractor.
     
     CURRENT CONTEXT:
-    - User is currently focused on: ${currentContext.section} (Field: ${currentContext.field})
+    - User is currently focused on: ${currentContext.section}
     - Existing Resume Data: ${JSON.stringify(resumeData)}
+
+    *** CRITICAL RULE: HANDLING MOCK DATA ***
+    The "Existing Resume Data" above might contain placeholder data used for previews. 
+    IF you see the following values, treat the field as EMPTY:
+    - Name: "John Doe"
+    - Company: "Tech Innovations Inc"
+    - School: "University of California, Berkeley"
+    - Email: "john.doe@example.com"
+    
+    DO NOT ask "Is your name still John Doe?". 
+    Instead, assume the resume is blank and ask "Let's start with your full name."
+    *****************************************
 
     YOUR TASK:
     Analyze the user's message ("${userMessage}") and return a JSON object with:
     1. **intent**: What is the user doing? (ANSWERING, SKIPPING, CHANGING_TOPIC, ASKING_HELP)
-    2. **extractedData**: Extract relevant information into the correct schema format.
-    3. **refinedContent**: If the user provided a bullet point or description, rewrite it to be impactful (Action verbs + Metrics).
-    4. **nextSectionSuggestion**: Based on what was filled, what section/field should we discuss next?
-
-  SCHEMA RULES:
-    - **Personal**: { "personal": { "name": "...", "email": "..." } }
-    - **Experience**: { "experience": [{ "company": "...", "position": "...", "highlights": ["..."] }] }
-    - **Education**: { "education": [{ "institution": "...", "degree": "..." }] }
-    - **Skills**: { "skills": { "languages": ["..."], "technologies": ["..."] } }
-    // ADD THIS LINE BELOW:
-    - **Achievements**: { "achievements": ["1st Position in Hackathon", "Solved 500 Leetcode problems"] }
+    2. **extractedData**: Extract relevant information.
+    3. **refinedContent**: Polished version of input.
 
     OUTPUT JSON FORMAT:
     {
       "intent": "ANSWERING" | "SKIPPING" | "CHANGING_TOPIC" | "ASKING_HELP",
       "extractedData": {}, 
-      "refinedContent": "Polished version of input if applicable (or null)",
+      "refinedContent": "...",
       "confidence": 0-1
     }
   `;
