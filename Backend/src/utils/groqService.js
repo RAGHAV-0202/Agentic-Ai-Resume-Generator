@@ -53,11 +53,13 @@ export const processUserMessage = async (userMessage, currentContext, resumeData
     3. **refinedContent**: If the user provided a bullet point or description, rewrite it to be impactful (Action verbs + Metrics).
     4. **nextSectionSuggestion**: Based on what was filled, what section/field should we discuss next?
 
-    SCHEMA RULES:
+  SCHEMA RULES:
     - **Personal**: { "personal": { "name": "...", "email": "..." } }
-    - **Experience**: { "experience": [{ "company": "...", "position": "...", "highlights": ["..."] }] } (If updating existing, try to match context)
+    - **Experience**: { "experience": [{ "company": "...", "position": "...", "highlights": ["..."] }] }
     - **Education**: { "education": [{ "institution": "...", "degree": "..." }] }
     - **Skills**: { "skills": { "languages": ["..."], "technologies": ["..."] } }
+    // ADD THIS LINE BELOW:
+    - **Achievements**: { "achievements": ["1st Position in Hackathon", "Solved 500 Leetcode problems"] }
 
     OUTPUT JSON FORMAT:
     {

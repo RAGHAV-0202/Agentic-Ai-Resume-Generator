@@ -1,5 +1,3 @@
-// src/models/Resume.model.js
-
 import mongoose from 'mongoose';
 
 const resumeSchema = new mongoose.Schema(
@@ -26,7 +24,8 @@ const resumeSchema = new mongoose.Schema(
     conversationState: {
       currentSection: {
         type: String,
-        enum: ['personal', 'education', 'experience', 'projects', 'skills', 'publications', 'complete'],
+        // Added 'achievements' to the enum list
+        enum: ['personal', 'education', 'experience', 'projects', 'skills', 'achievements', 'publications', 'complete'],
         default: 'personal',
       },
       currentField: {
@@ -47,7 +46,6 @@ const resumeSchema = new mongoose.Schema(
       },
     },
 
-    // Stores all chat messages
     chatHistory: [
       {
         role: {
@@ -114,6 +112,10 @@ const resumeSchema = new mongoose.Schema(
         languages: [{ type: String }],
         technologies: [{ type: String }],
       },
+      achievements: {
+        type: [String],
+        default: [],
+      },
 
       publications: [
         {
@@ -125,7 +127,6 @@ const resumeSchema = new mongoose.Schema(
       ],
     },
 
-    // Generated files
     generatedLatex: {
       type: String,
       default: '',
@@ -136,7 +137,6 @@ const resumeSchema = new mongoose.Schema(
       default: '',
     },
 
-    // Access control
     isPublic: {
       type: Boolean,
       default: false,
@@ -147,10 +147,8 @@ const resumeSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
 resumeSchema.index({ userId: 1, createdAt: -1 });
 
-// Methods
 resumeSchema.methods.addMessage = function (role, content) {
   this.chatHistory.push({
     role,
@@ -167,13 +165,20 @@ resumeSchema.methods.isSectionComplete = function (section) {
     experience: ['company', 'position', 'startDate', 'endDate'],
     projects: ['name'],
     skills: ['languages', 'technologies'],
+    // Added achievements check (simple check if array has items)
+    achievements: [], 
   };
 
   const fields = sectionFields[section];
-  if (!fields) return false;
+  if (!fields && section !== 'achievements') return false;
 
   if (section === 'personal') {
     return fields.every((field) => this.data.personal[field] && this.data.personal[field].trim() !== '');
+  }
+
+  // Check for achievements specifically
+  if (section === 'achievements') {
+     return this.data.achievements && this.data.achievements.length > 0;
   }
 
   return this.data[section] && this.data[section].length > 0;

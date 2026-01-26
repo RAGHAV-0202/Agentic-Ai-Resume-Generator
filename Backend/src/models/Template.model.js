@@ -1,5 +1,3 @@
-// src/models/Template.model.js
-
 import mongoose from 'mongoose';
 
 const templateSchema = new mongoose.Schema(
@@ -52,6 +50,11 @@ const templateSchema = new mongoose.Schema(
         type: [String],
         default: ['languages', 'technologies'],
       },
+      // Added achievements here
+      achievements: {
+        type: [String],
+        default: [], // No sub-fields to require, just the section itself
+      },
       publications: {
         type: [String],
         default: ['title', 'authors', 'date'],
@@ -73,6 +76,11 @@ const templateSchema = new mongoose.Schema(
       projects: {
         type: [String],
         default: ['link', 'date', 'technologies'],
+      },
+      // Added achievements here as well for flexibility
+      achievements: {
+        type: [String],
+        default: [],
       },
     },
     isActive: {
@@ -101,18 +109,15 @@ const templateSchema = new mongoose.Schema(
 // Index for faster queries
 templateSchema.index({ isActive: 1, isPremium: 1 });
 
-// Method to increment usage count
 templateSchema.methods.incrementUsage = function () {
   this.usageCount += 1;
   return this.save();
 };
 
-// Static method to get all active templates
 templateSchema.statics.getActiveTemplates = function () {
-  return this.find({ isActive: true }).select('-latexTemplate'); // Don't send full LaTeX in list
+  return this.find({ isActive: true }).select('-latexTemplate'); 
 };
 
-// Static method to get template by slug
 templateSchema.statics.getBySlug = function (slug) {
   return this.findOne({ slug, isActive: true });
 };
