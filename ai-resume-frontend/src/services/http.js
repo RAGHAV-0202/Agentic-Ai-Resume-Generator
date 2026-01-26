@@ -1,7 +1,8 @@
 import axios from "axios";
+export const baseURL = "https://agentic-ai-resume-generator.onrender.com"
 
 const api = axios.create({
-  baseURL: "https://agentic-ai-resume-generator.onrender.com",
+  baseURL: baseURL,
   withCredentials: true,
   timeout: 15000,
 });

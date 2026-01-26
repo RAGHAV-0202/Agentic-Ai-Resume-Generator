@@ -1,4 +1,4 @@
-import api from "./http";
+import api, { baseURL } from "./http";
 
 export const CreateResumeSession = (data) => {
     return api.post("/api/resume", data) // template id
@@ -33,11 +33,12 @@ export const GeneratePdf = (data) => {
 }
 
 export const RecompilePdf = (resumeId) => { // ✅ NEW - for manual recompile
+    console.log("recompile called")
     return api.post(`/api/pdf/recompile/${resumeId}`)
 }
 
-export const DownloadPdf = (resumeId) => { // ✅ NEW - for download
-    return api.post(`/api/pdf/generate/${resumeId}`, {
-        responseType: 'blob' // Important for file download
+export const DownloadPdf = async(resumeId) => { // ✅ NEW - for download
+    const response = await api.post(`/api/pdf/recompile/${resumeId}`, {
     })
+    return baseURL+response.data.data.pdfUrl
 }

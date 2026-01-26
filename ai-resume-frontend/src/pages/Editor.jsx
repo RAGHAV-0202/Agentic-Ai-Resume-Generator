@@ -33,8 +33,7 @@ const Editor = () => {
 
                 if (resumeRes.data?.data?.resume) {
                     const resume = resumeRes.data.data.resume;
-                    setResumeData(resume.data); // Resume content
-                    setPdfUrl(resume.pdfUrl); // PDF URL if exists
+                    handleRecompile()
 
                     // Restore chat history
                     if (resume.chatHistory && Array.isArray(resume.chatHistory)) {
@@ -135,11 +134,10 @@ const Editor = () => {
     const handleRecompile = async () => {
         setRecompiling(true);
         try {
-            const res = await RecompilePdf(id);
-            if (res.data?.data?.pdfUrl) {
-                setPdfUrl(res.data.data.pdfUrl);
-                setPdfTimestamp(Date.now());
-                alert("✅ PDF recompiled successfully!");
+            const res = await DownloadPdf(id);
+            if (res) {
+                setPdfUrl(res);
+                setPdfTimestamp(Date.now()); // 👈 important
             }
         } catch (error) {
             console.error("Recompile error:", error);
@@ -149,26 +147,23 @@ const Editor = () => {
         }
     };
 
-    const handleDownload = async () => {
-        try {
-            const response = await DownloadPdf(id);
 
-            // Create blob and download
-            const blob = new Blob([response.data], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `resume_${id}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error("Download error:", error);
-            alert("Failed to download PDF");
-        }
+    const handleDownload = async () => {
+    try {
+        const pdfUrl = await DownloadPdf(id);
+
+        console.log("PDF URL:", pdfUrl);
+
+        // Open PDF in new tab
+        window.open(pdfUrl, "_blank", "noopener,noreferrer");
+
+    } catch (error) {
+        console.error("Open PDF error:", error);
+        alert("Failed to open PDF");
+    }
     };
 
+    
     const changeTemp = async (templateId) => {
         console.log(templateId)
         await ChangeTemplate({ id, templateId })
@@ -253,9 +248,10 @@ const Editor = () => {
                     {pdfUrl ? (
                         <div className="bg-white shadow-xl w-[794px] h-fit">
                             <iframe
-                                src={`${import.meta.env.VITE_API_URL}${pdfUrl}?t=${pdfTimestamp}`}
-                                className="w-full h-[1123px]"
-                                title="Resume Preview"
+                            key={pdfTimestamp}
+                            src={`${pdfUrl}?t=${pdfTimestamp}`}
+                            className="w-full h-[1123px]"
+                            title="Resume Preview"
                             />
                         </div>
                     ) : (
