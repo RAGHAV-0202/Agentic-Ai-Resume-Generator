@@ -4,6 +4,8 @@ import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
+import Templates from './pages/Templates'
+import Editor from './pages/Editor'
 
 function App() {
     return (
@@ -14,6 +16,8 @@ function App() {
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/register" element={<Signup />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/templates" element={<Templates />} />
+                <Route path="/editor/:id" element={<Editor />} />
             </Routes>
         </Router>
     )

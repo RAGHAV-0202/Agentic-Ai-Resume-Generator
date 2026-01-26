@@ -6,6 +6,8 @@ import asyncHandler from "../utils/asyncHandler.js";
 import Template from "../models/Template.model.js";
 
 
+// src/controllers/resume.controller.js
+
 export const createResume = asyncHandler(async (req, res) => {
   const { templateId } = req.body;
   const userId = req.user._id;
@@ -15,10 +17,73 @@ export const createResume = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  // Create new resume session
+  // ✅ MOCK DATA - Pre-filled resume
+  const mockData = {
+    personal: {
+      name: "John Doe",
+      location: "San Francisco, CA",
+      email: "john.doe@example.com",
+      phone: "+1 (555) 123-4567",
+      linkedin: "linkedin.com/in/johndoe",
+      github: "github.com/johndoe",
+      website: "johndoe.dev",
+    },
+    education: [
+      {
+        institution: "University of California, Berkeley",
+        degree: "Bachelor of Science in Computer Science",
+        startDate: "2018",
+        endDate: "2022",
+        gpa: "3.8/4.0",
+        coursework: ["Data Structures", "Algorithms", "Machine Learning", "Web Development"],
+      },
+    ],
+    experience: [
+      {
+        company: "Tech Innovations Inc.",
+        position: "Software Engineer",
+        location: "San Francisco, CA",
+        startDate: "June 2022",
+        endDate: "Present",
+        highlights: [
+          "Developed full-stack web applications using React and Node.js",
+          "Improved application performance by 40% through optimization",
+          "Led a team of 3 junior developers on key projects",
+        ],
+      },
+    ],
+    projects: [
+      {
+        name: "E-Commerce Platform",
+        link: "github.com/johndoe/ecommerce",
+        date: "2022",
+        highlights: [
+          "Built a scalable e-commerce platform with payment integration",
+          "Implemented real-time inventory management",
+        ],
+        technologies: ["React", "Node.js", "MongoDB", "Stripe"],
+      },
+      {
+        name: "Task Management App",
+        link: "github.com/johndoe/taskmanager",
+        date: "2021",
+        highlights: [
+          "Created a collaborative task management tool with real-time updates",
+        ],
+        technologies: ["Vue.js", "Firebase", "Tailwind CSS"],
+      },
+    ],
+    skills: {
+      languages: ["JavaScript", "Python", "Java", "TypeScript"],
+      technologies: ["React", "Node.js", "Express", "MongoDB", "PostgreSQL", "Docker", "AWS"],
+    },
+    publications: [],
+  };
+
+  // Create new resume session with MOCK DATA
   const newResume = await Resume.create({
     userId,
-    templateId: templateId || null, 
+    templateId: templateId || null,
     resumeName: `Resume - ${new Date().toLocaleDateString()}`,
     conversationState: {
       currentSection: "personal",
@@ -28,39 +93,37 @@ export const createResume = asyncHandler(async (req, res) => {
       isComplete: false,
     },
     chatHistory: [],
-    data: {
-      personal: {
-        name: "",
-        location: "",
-        email: "",
-        phone: "",
-        linkedin: "",
-        github: "",
-        website: "",
-      },
-      education: [],
-      experience: [],
-      projects: [],
-      skills: {
-        languages: [],
-        technologies: [],
-      },
-      publications: [],
-    },
+    data: mockData, // ✅ Pre-filled with mock data
   });
+
+  // ✅ AUTO-GENERATE PDF WITH MOCK DATA
+  if (templateId) {
+    try {
+      const template = await Template.findById(templateId);
+      if (template) {
+        const latexString = generateLatex(template.latexTemplate, mockData);
+        const pdfBuffer = await compilePDF(latexString, newResume._id);
+        const pdfPath = savePDF(pdfBuffer, newResume._id);
+        newResume.pdfUrl = `/pdfs/${newResume._id}.pdf`;
+        newResume.generatedLatex = latexString;
+        await newResume.save();
+      }
+    } catch (error) {
+      console.error("Initial PDF generation failed:", error);
+      // Don't throw error - resume is still created
+    }
+  }
 
   user.totalResumesCreated += 1;
   await user.save();
 
-  res
-    .status(201)
-    .json(
-      new ApiResponse(
-        201,
-        { resumeId: newResume._id, resume: newResume },
-        "Resume session created successfully"
-      )
-    );
+  res.status(201).json(
+    new ApiResponse(
+      201,
+      { resumeId: newResume._id, resume: newResume },
+      "Resume session created successfully with preview"
+    )
+  );
 });
 
 
@@ -146,3 +209,4 @@ export const setResumeTemplate = asyncHandler(async (req, res) => {
       )
     );
 });
+

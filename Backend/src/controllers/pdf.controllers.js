@@ -97,3 +97,54 @@ export const getPDFUrl = asyncHandler(async (req, res) => {
     )
   );
 });
+
+export const recompilePDF = asyncHandler(async (req, res) => {
+  const { resumeId } = req.params;
+  const userId = req.user._id;
+
+  const resume = await Resume.findOne({ _id: resumeId, userId });
+
+  if (!resume) {
+    throw new ApiError(404, "Resume not found or unauthorized");
+  }
+
+  if (!resume.templateId) {
+    throw new ApiError(400, "Please select a template first");
+  }
+
+  const template = await Template.findById(resume.templateId);
+
+  if (!template) {
+    throw new ApiError(404, "Template not found");
+  }
+
+  console.log("🔄 Recompiling PDF with updated data...");
+
+  // Generate LaTeX with CURRENT data (not mock)
+  const latexString = generateLatex(template.latexTemplate, resume.data);
+  resume.generatedLatex = latexString;
+
+  // Compile to PDF
+  const pdfBuffer = await compilePDF(latexString, resumeId);
+
+  // Save PDF
+  const pdfPath = savePDF(pdfBuffer, resumeId);
+
+  resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
+  resume.updatedAt = new Date(); // Force update timestamp
+  await resume.save();
+
+  console.log("✅ PDF recompiled successfully!");
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        pdfUrl: resume.pdfUrl,
+        timestamp: resume.updatedAt,
+        message: "PDF recompiled successfully",
+      },
+      "PDF recompiled successfully"
+    )
+  );
+});

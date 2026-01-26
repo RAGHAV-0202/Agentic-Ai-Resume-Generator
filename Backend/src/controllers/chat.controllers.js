@@ -66,6 +66,17 @@ const getNextField = (currentSection, currentField, isPendingArray, forceNextSec
   };
 };
 
+function shouldAutoRecompile(section, field) {
+  // Only auto-recompile on significant fields
+  const significantFields = {
+    personal: ['name', 'email'],
+    education: ['institution', 'degree'],
+    experience: ['company', 'position'],
+    projects: ['name'],
+  };
+  
+  return significantFields[section]?.includes(field);
+}
 
 export const sendMessage = asyncHandler(async (req, res) => {
   const { resumeId, message } = req.body;
@@ -114,14 +125,39 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
     await resume.addMessage("assistant", aiResponse);
 
-    return res.status(200).json(
+
+    let autoRecompiled = false;
+    if (resume.templateId && shouldAutoRecompile(currentSection, currentField)) {
+      try {
+        const template = await Template.findById(resume.templateId);
+        if (template) {
+          const latexString = generateLatex(template.latexTemplate, resume.data);
+          const pdfBuffer = await compilePDF(latexString, resumeId);
+          savePDF(pdfBuffer, resumeId);
+          resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
+          await resume.save();
+          autoRecompiled = true;
+        }
+      } catch (error) {
+        console.error("Auto-recompile failed:", error);
+        // Don't fail the chat if PDF fails
+      }
+    }  
+
+    res.status(200).json(
       new ApiResponse(200, {
         aiMessage: aiResponse,
         conversationState: resume.conversationState,
         resumeData: resume.data,
+        extractedData: {
+          field: currentField,
+          value: extractedValue,
+        },
+        isComplete: resume.conversationState.isComplete,
+        pdfRecompiled: autoRecompiled, // ✅ Tell frontend PDF was updated
       })
     );
-  }
+  };
 
   // Extract data from user message
   let extractedValue = await extractDataFromMessage(
