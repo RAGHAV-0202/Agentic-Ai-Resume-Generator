@@ -4,6 +4,7 @@ import { CreateResumeSession } from '../services/resume.api';
 import { useNavigate } from 'react-router-dom';
 
 const TemplateCard = ({ template }) => {
+    console.log(template)
     const navigate = useNavigate();
 
     const handleUseTemplate = async () => {
@@ -27,7 +28,7 @@ const TemplateCard = ({ template }) => {
             {/* Thumbnail */}
             <div className="relative h-64 bg-slate-100 overflow-hidden">
                 <img
-                    src={template.thumbnail || "https://placehold.co/400x600/e2e8f0/94a3b8?text=Template+Preview"}
+                    src={template.thumbnailUrl || "https://placehold.co/400x600/e2e8f0/94a3b8?text=Template+Preview"}
                     alt={template.name}
                     className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
                 />

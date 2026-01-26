@@ -3,8 +3,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight } from 'lucide-react';
-import { GetResumeById, StartChat, ChatWithAgent, RecompilePdf, DownloadPdf } from '../services/resume.api';
-import { getAllTemplates } from '../services/template.api';
+import { GetResumeById, StartChat, ChatWithAgent, RecompilePdf, DownloadPdf , ChangeTemplate } from '../services/resume.api';
+import { getAllTemplates  } from '../services/template.api';
 
 const Editor = () => {
     const { id } = useParams();
@@ -29,7 +29,7 @@ const Editor = () => {
             try {
                 // 1. Fetch Resume Detail
                 const resumeRes = await GetResumeById(id);
-                console.log("Resume Data:", resumeRes);
+                
                 
                 if (resumeRes.data?.data?.resume) {
                     const resume = resumeRes.data.data.resume;
@@ -168,6 +168,10 @@ const Editor = () => {
         }
     };
 
+    const changeTemp = async (id) =>{
+        await ChangeTemplate(id)
+    }
+
     if (loading) {
         return (
             <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -227,7 +231,7 @@ const Editor = () => {
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                         {templates.map(template => (
-                            <div key={template._id} className="group cursor-pointer">
+                            <div key={template._id} onClick={()=>changeTemp(template._id)} className="group cursor-pointer">
                                 <div className="aspect-[3/4] rounded-lg overflow-hidden border border-slate-200 relative">
                                     <img
                                         src={template.thumbnailUrl || "https://placehold.co/300x400/e2e8f0/94a3b8?text=Template"}

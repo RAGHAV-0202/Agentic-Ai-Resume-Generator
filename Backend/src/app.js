@@ -19,7 +19,7 @@ app.use("/pdfs", express.static("pdfs"))
 
 const corsOptions = {
     origin: ["http://localhost:5173"],
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS' , 'PUT'],
     allowedHeaders: ['Content-type', 'Authorization', 'Cookie'],
     credentials: true
 }
