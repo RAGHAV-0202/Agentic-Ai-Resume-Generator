@@ -11,6 +11,7 @@ import ChatRouter from "./routes/chat.routes.js"
 import pdfRoutes from "./routes/pdf.routes.js"
 import templateRoutes from "./routes/template.routes.js"
 import AdminRouter from "./routes/admin.routes.js"
+import agentRoutes from "./routes/agent.routes.js";
 
 const app = express()
 app.use(expressStatusMonitor({ path: '/dashboard' }))
@@ -59,5 +60,6 @@ app.use("/api/chat", ChatRouter)
 app.use("/api/pdf", pdfRoutes);
 app.use("/api/template", templateRoutes)
 app.use("/api/admin", AdminRouter)
+app.use("/api/agent", agentRoutes);
 
 export default app
