@@ -5,6 +5,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight } from 'lucide-react';
 import { GetResumeById, StartChat, ChatWithAgent, RecompilePdf, DownloadPdf, ChangeTemplate } from '../services/resume.api';
 import { getAllTemplates } from '../services/template.api';
+import { GridScan } from '../components/ui/gridScan';
+import DotGrid from '../components/ui/dotGrid';
+
+
 
 const Editor = () => {
     const { id } = useParams();
@@ -22,6 +26,8 @@ const Editor = () => {
     const [recompiling, setRecompiling] = useState(false);
     const [templates, setTemplates] = useState([]);
     const [conversationStarted, setConversationStarted] = useState(false);
+    const [pdfLoading, setPdfLoading] = useState(false);
+
 
     // Fetch Resume & Templates on Mount
     useEffect(() => {
@@ -132,21 +138,19 @@ const Editor = () => {
     };
 
     const handleRecompile = async () => {
-        setRecompiling(true);
+        setPdfLoading(true);
+
         try {
             const res = await DownloadPdf(id);
             if (res) {
                 setPdfUrl(res);
-                setPdfTimestamp(Date.now()); // 👈 important
+                setPdfTimestamp(Date.now()); // triggers reload
             }
         } catch (error) {
             console.error("Recompile error:", error);
             alert("❌ Failed to recompile PDF");
-        } finally {
-            setRecompiling(false);
         }
     };
-
 
     const handleDownload = async () => {
     try {
@@ -167,6 +171,7 @@ const Editor = () => {
     const changeTemp = async (templateId) => {
         console.log(templateId)
         await ChangeTemplate({ id, templateId })
+        handleRecompile()
     }
 
     if (loading) {
@@ -245,26 +250,55 @@ const Editor = () => {
 
                 {/* CENTER PANEL: PDF Preview */}
                 <main className="flex-1 overflow-y-auto bg-slate-100 p-8 flex justify-center">
-                    {pdfUrl ? (
-                        <div className="bg-white shadow-xl w-[794px] h-fit">
+                    {pdfUrl && (
+                        <div className="relative bg-white shadow-xl w-[794px] h-fit">
+                            
+                            {/* PDF */}
                             <iframe
-                            key={pdfTimestamp}
-                            src={`${pdfUrl}?t=${pdfTimestamp}`}
-                            className="w-full h-[1123px]"
-                            title="Resume Preview"
+                                src={`${pdfUrl}?t=${pdfTimestamp}`}
+                                className={`w-full h-[1123px] transition-opacity duration-300 ${
+                                    pdfLoading ? 'opacity-0' : 'opacity-100'
+                                }`}
+                                onLoad={() => setPdfLoading(false)}
+                                title="Resume Preview"
                             />
-                        </div>
-                    ) : (
-                        // Loading state for PDF generation
-                        <div className="bg-white shadow-xl w-[794px] h-[1123px] flex flex-col items-center justify-center p-12 text-slate-400">
-                            <div className="animate-spin mb-4">
-                                <Loader2 size={48} className="text-blue-500" />
-                            </div>
-                            <p className="text-lg font-medium text-slate-600">Generating your resume PDF...</p>
-                            <p className="text-sm mt-2">This usually takes a few seconds.</p>
+
+                            {/* Overlay Loader */}
+                            {pdfLoading && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm z-10">
+                                    {/* <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                                    <GridScan
+                                        sensitivity={0.55}
+                                        lineThickness={1}
+                                        linesColor="#392e4e"
+                                        gridScale={0.1}
+                                        scanColor="#FF9FFC"
+                                        scanOpacity={0.4}
+                                        enablePost
+                                        bloomIntensity={0.6}
+                                        chromaticAberration={0.002}
+                                        noiseIntensity={0.01}
+                                    />
+                                    </div> */}
+                                    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                                    <DotGrid
+                                        dotSize={5}
+                                        gap={15}
+                                        baseColor="#271E37"
+                                        activeColor="#d3d3d3"
+                                        proximity={120}
+                                        shockRadius={250}
+                                        shockStrength={5}
+                                        resistance={750}
+                                        returnDuration={1.5}
+                                    />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </main>
+
 
                 {/* RIGHT PANEL: Chat */}
                 <aside className="w-[400px] bg-white border-l border-slate-200 flex flex-col shadow-2xl z-20">

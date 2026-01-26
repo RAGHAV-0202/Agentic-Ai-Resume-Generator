@@ -169,11 +169,41 @@ export const getAIResponse = async (
 
 
 
+  // MOCK DATA TO IGNORE (Values from resume.controllers.js)
+  const MOCK_VALUES = [
+    "John Doe", "San Francisco, CA", "john.doe@example.com", "+1 (555) 123-4567",
+    "linkedin.com/in/johndoe", "github.com/johndoe", "johndoe.dev",
+    "University of California, Berkeley", "Bachelor of Science in Computer Science",
+    "Tech Innovations Inc.", "E-Commerce Platform", "Task Management App",
+    "Software Engineer" // Use with caution, but "Software Engineer" is the mock title
+  ];
+
+  const cleanseData = (data) => {
+    if (!data) return data;
+    if (typeof data === 'string') {
+      if (MOCK_VALUES.some(mock => data.includes(mock))) return "";
+      return data;
+    }
+    if (Array.isArray(data)) {
+      return data.map(cleanseData);
+    }
+    if (typeof data === 'object') {
+      const cleaned = {};
+      for (const key in data) {
+        cleaned[key] = cleanseData(data[key]);
+      }
+      return cleaned;
+    }
+    return data;
+  };
+
+  const cleanData = cleanseData(collectedData);
+
   // Build conversation context for GROQ
   const systemPrompt = getSystemPrompt(
     currentSection,
     currentField,
-    collectedData
+    cleanData
   );
 
   // Keep last 10 messages for context
