@@ -11,6 +11,23 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const accessToken = localStorage.getItem("accessToken");
+    const adminAccessToken = localStorage.getItem("adminAccessToken");
+
+    // Simple logic: if request path starts with /api/admin or /api/template/ (for create/update), prioritize admin token
+    // Actually, template fetch is public, but create is admin. 
+    // Let's just say: if adminAccessToken exists, we can use it?
+    // Wait, conflicts if user is also logged in.
+
+    // Better: If we are on an admin page or calling admin API, we use admin token.
+    // However, interceptor doesn't know the "page".
+    // Let's check if the URL is an admin specific URL.
+
+    if (config.url?.includes("/api/admin") || (config.method !== 'get' && config.url?.includes("/api/template"))) {
+      if (adminAccessToken) {
+        config.headers.Authorization = `Bearer ${adminAccessToken}`;
+        return config;
+      }
+    }
 
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;

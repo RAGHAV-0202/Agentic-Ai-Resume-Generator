@@ -7,7 +7,8 @@ import {
   updateTemplate,
   deleteTemplate,
 } from "../controllers/template.controllers.js"
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { verifyAdminJWT } from "../middlewares/adminAuth.middleware.js";
+import { upload } from "../utils/multer.js";
 
 const router = express.Router();
 
@@ -16,8 +17,9 @@ router.get("/", getAllTemplates);
 router.get("/:id", getTemplateById);
 router.get("/slug/:slug", getTemplateBySlug);
 
-router.post("/", verifyJWT, createTemplate);
-router.put("/:id", verifyJWT, updateTemplate);
-router.delete("/:id", verifyJWT, deleteTemplate);
+// Admin Protected Routes
+router.post("/", verifyAdminJWT, upload.single("thumbnail"), createTemplate);
+router.put("/:id", verifyAdminJWT, upload.single("thumbnail"), updateTemplate);
+router.delete("/:id", verifyAdminJWT, deleteTemplate);
 
 export default router;

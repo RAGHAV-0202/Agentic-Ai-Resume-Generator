@@ -10,6 +10,7 @@ import AuthRouter from "./routes/auth.routes.js"
 import ChatRouter from "./routes/chat.routes.js"
 import pdfRoutes from "./routes/pdf.routes.js"
 import templateRoutes from "./routes/template.routes.js"
+import AdminRouter from "./routes/admin.routes.js"
 
 const app = express()
 app.use(expressStatusMonitor({ path: '/dashboard' }))
@@ -19,7 +20,7 @@ app.use("/pdfs", express.static("pdfs"))
 
 const corsOptions = {
     origin: ["http://localhost:5173"],
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS' , 'PUT'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'],
     allowedHeaders: ['Content-type', 'Authorization', 'Cookie'],
     credentials: true
 }
@@ -57,5 +58,6 @@ app.use("/api/auth", AuthRouter)
 app.use("/api/chat", ChatRouter)
 app.use("/api/pdf", pdfRoutes);
 app.use("/api/template", templateRoutes)
+app.use("/api/admin", AdminRouter)
 
 export default app

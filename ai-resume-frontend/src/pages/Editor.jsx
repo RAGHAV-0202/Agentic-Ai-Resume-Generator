@@ -153,21 +153,21 @@ const Editor = () => {
     };
 
     const handleDownload = async () => {
-    try {
-        const pdfUrl = await DownloadPdf(id);
+        try {
+            const pdfUrl = await DownloadPdf(id);
 
-        console.log("PDF URL:", pdfUrl);
+            console.log("PDF URL:", pdfUrl);
 
-        // Open PDF in new tab
-        window.open(pdfUrl, "_blank", "noopener,noreferrer");
+            // Open PDF in new tab
+            window.open(pdfUrl, "_blank", "noopener,noreferrer");
 
-    } catch (error) {
-        console.error("Open PDF error:", error);
-        alert("Failed to open PDF");
-    }
+        } catch (error) {
+            console.error("Open PDF error:", error);
+            alert("Failed to open PDF");
+        }
     };
 
-    
+
     const changeTemp = async (templateId) => {
         console.log(templateId)
         await ChangeTemplate({ id, templateId })
@@ -251,47 +251,36 @@ const Editor = () => {
                 {/* CENTER PANEL: PDF Preview */}
                 <main className="flex-1 overflow-y-auto bg-slate-100 p-8 flex justify-center">
                     {pdfUrl && (
-                        <div className="relative bg-white shadow-xl w-[794px] h-fit">
+                        <div className="relative bg-white shadow-xl w-[794px] h-[1123px] overflow-hidden">
                             
-                            {/* PDF */}
+                            {/* PDF Iframe */}
                             <iframe
-                                src={`${pdfUrl}?t=${pdfTimestamp}`}
-                                className={`w-full h-[1123px] transition-opacity duration-300 ${
+                                // ADDED: #toolbar=0&navpanes=0&scrollbar=0&view=FitH
+                                src={`${pdfUrl}?t=${pdfTimestamp}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                                className={`w-full h-full border-none transition-opacity duration-300 ${
                                     pdfLoading ? 'opacity-0' : 'opacity-100'
                                 }`}
                                 onLoad={() => setPdfLoading(false)}
                                 title="Resume Preview"
+                                // ADDED: scroll attribute for older browsers
+                                scrolling="no"
                             />
 
                             {/* Overlay Loader */}
                             {pdfLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm z-10">
-                                    {/* <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                                    <GridScan
-                                        sensitivity={0.55}
-                                        lineThickness={1}
-                                        linesColor="#392e4e"
-                                        gridScale={0.1}
-                                        scanColor="#FF9FFC"
-                                        scanOpacity={0.4}
-                                        enablePost
-                                        bloomIntensity={0.6}
-                                        chromaticAberration={0.002}
-                                        noiseIntensity={0.01}
-                                    />
-                                    </div> */}
                                     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                                    <DotGrid
-                                        dotSize={5}
-                                        gap={15}
-                                        baseColor="#271E37"
-                                        activeColor="#d3d3d3"
-                                        proximity={120}
-                                        shockRadius={250}
-                                        shockStrength={5}
-                                        resistance={750}
-                                        returnDuration={1.5}
-                                    />
+                                        <DotGrid
+                                            dotSize={5}
+                                            gap={15}
+                                            baseColor="#271E37"
+                                            activeColor="#d3d3d3"
+                                            proximity={120}
+                                            shockRadius={250}
+                                            shockStrength={5}
+                                            resistance={750}
+                                            returnDuration={1.5}
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -325,8 +314,8 @@ const Editor = () => {
                                     {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                                 </div>
                                 <div className={`max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed shadow-sm ${msg.role === 'user'
-                                        ? 'bg-blue-600 text-white rounded-tr-none'
-                                        : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
+                                    ? 'bg-blue-600 text-white rounded-tr-none'
+                                    : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
                                     }`}>
                                     {msg.content.split('\n').map((line, i) => (
                                         <p key={i} className="mb-1 last:mb-0">{line}</p>

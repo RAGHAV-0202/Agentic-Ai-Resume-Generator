@@ -4,11 +4,12 @@ import Template from "../models/Template.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
 
 export const getAllTemplates = asyncHandler(async (req, res) => {
   const templates = await Template.find({ isActive: true }).select(
-    "-latexTemplate" 
+    "-latexTemplate"
   );
 
   res
@@ -66,7 +67,6 @@ export const createTemplate = asyncHandler(async (req, res) => {
     slug,
     description,
     latexTemplate,
-    thumbnailUrl,
     requiredFields,
     optionalFields,
   } = req.body;
@@ -79,6 +79,15 @@ export const createTemplate = asyncHandler(async (req, res) => {
   const existingTemplate = await Template.findOne({ slug });
   if (existingTemplate) {
     throw new ApiError(409, "Template with this slug already exists");
+  }
+
+  // Handle Thumbnail Upload
+  let thumbnailUrl = "";
+  if (req.file) {
+    const uploadedImage = await uploadOnCloudinary(req.file.path);
+    if (uploadedImage) {
+      thumbnailUrl = uploadedImage.secure_url;
+    }
   }
 
   const newTemplate = await Template.create({
@@ -106,6 +115,14 @@ export const createTemplate = asyncHandler(async (req, res) => {
 export const updateTemplate = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
+
+  // Handle Thumbnail Upload if present
+  if (req.file) {
+    const uploadedImage = await uploadOnCloudinary(req.file.path);
+    if (uploadedImage) {
+      updates.thumbnailUrl = uploadedImage.secure_url;
+    }
+  }
 
   const template = await Template.findByIdAndUpdate(id, updates, {
     new: true,
