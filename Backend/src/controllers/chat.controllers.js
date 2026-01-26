@@ -9,6 +9,7 @@ import {
   extractDataFromMessage,
 } from "../utils/groqService.js";
 
+
 const sectionFlow = {
   personal: ["name", "location", "email", "phone", "linkedin", "github", "website"],
   education: ["institution", "degree", "startDate", "endDate", "gpa", "coursework"],

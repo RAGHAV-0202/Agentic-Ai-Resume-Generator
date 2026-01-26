@@ -131,23 +131,104 @@ const callGroqAPI = async (messages) => {
         model: GROQ_MODEL,
         messages: messages,
         temperature: 0.7,
-        max_tokens: 500,
-        top_p: 1,
-        stream: false,
       }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`GROQ API error: ${response.status} - ${errorText}`);
+      throw new Error(`GROQ API error: ${response.status}`);
     }
 
     const data = await response.json();
     return data.choices[0].message.content;
   } catch (error) {
-    console.error("Error calling GROQ API:", error);
-    throw error;
+    console.error("Content optimizer error:", error);
+    return null; // Fallback to original content
   }
+};
+
+
+export const optimizeExperienceHighlight = async (rawHighlight) => {
+  const prompt = `You are a professional resume writer. Rewrite this work achievement to be more impactful and ATS-friendly. Follow these rules:
+
+1. Start with a strong action verb (Led, Developed, Implemented, Achieved, etc.)
+2. Include quantifiable metrics if possible (numbers, percentages, time saved)
+3. Be concise (1-2 lines maximum)
+4. Focus on impact and results
+5. Use professional language
+6. DO NOT add fake numbers - only suggest where metrics could be added
+
+Original: "${rawHighlight}"
+
+Return ONLY the improved version, nothing else.`;
+
+  const messages = [
+    {
+      role: "system",
+      content: "You are an expert resume writer specializing in impactful achievement statements.",
+    },
+    { role: "user", content: prompt },
+  ];
+
+  const optimized = await callGroqAPI(messages);
+  return optimized || rawHighlight; // Fallback to original if optimization fails
+};
+
+/**
+ * Optimize project description
+ */
+export const optimizeProjectDescription = async (rawDescription) => {
+  const prompt = `You are a professional resume writer. Enhance this project description to highlight technical skills and impact. 
+
+Rules:
+1. Keep it concise (1-2 sentences)
+2. Emphasize technical skills and technologies
+3. Highlight the problem solved or value created
+4. Use professional but engaging language
+5. DO NOT invent features that weren't mentioned
+
+Original: "${rawDescription}"
+
+Return ONLY the improved version, nothing else.`;
+
+  const messages = [
+    {
+      role: "system",
+      content: "You are an expert at writing compelling project descriptions for technical resumes.",
+    },
+    { role: "user", content: prompt },
+  ];
+
+  const optimized = await callGroqAPI(messages);
+  return optimized || rawDescription;
+};
+
+/**
+ * Suggest improvements for a complete section
+ */
+export const suggestSectionImprovements = async (section, data) => {
+  if (section === "experience" && data.highlights) {
+    const optimizedHighlights = [];
+    
+    for (const highlight of data.highlights) {
+      const optimized = await optimizeExperienceHighlight(highlight);
+      optimizedHighlights.push(optimized);
+    }
+    
+    return { ...data, highlights: optimizedHighlights };
+  }
+  
+  if (section === "projects" && data.highlights) {
+    const optimizedHighlights = [];
+    
+    for (const highlight of data.highlights) {
+      const optimized = await optimizeProjectDescription(highlight);
+      optimizedHighlights.push(optimized);
+    }
+    
+    return { ...data, highlights: optimizedHighlights };
+  }
+  
+  return data;
 };
 
 export const getAIResponse = async (
