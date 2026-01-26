@@ -1,11 +1,30 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { User, LogOut, LayoutDashboard } from 'lucide-react';
 import Button from '../components/ui/Button';
 
 function Navbar() {
 
     const currentUrl = window.location.pathname;
-    
+    const navigate = useNavigate();
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [user, setUser] = useState(null);
+
+    useEffect(() => {
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+            setIsLoggedIn(true);
+            // Optional: You could decode the token or fetch user details here if needed
+            // For now, just assuming logged in is enough
+        }
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('accessToken');
+        setIsLoggedIn(false);
+        navigate('/');
+    };
+
     return (
         <nav className='fixed top-0 left-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/5'>
             <div className='container mx-auto px-6 h-16 flex items-center justify-between'>
@@ -20,22 +39,40 @@ function Navbar() {
                 </Link>
 
                 {/* Desktop Navigation */}
-                { currentUrl == "/" && 
-                <div className='hidden md:flex items-center gap-8'>
-                    <a href="#features" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Features</a>
-                    <a href="#pricing" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Pricing</a>
-                    <a href="#templates" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Templates</a>
-                </div>
-                }   
+                {currentUrl == "/" &&
+                    <div className='hidden md:flex items-center gap-8'>
+                        <a href="#features" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Features</a>
+                        <a href="#pricing" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Pricing</a>
+                        <a href="#templates" className='text-sm font-medium text-slate-300 hover:text-white transition-colors'>Templates</a>
+                    </div>
+                }
 
                 {/* Auth Buttons */}
                 <div className='flex items-center gap-4'>
-                    <Link to={'/login'} className='text-sm font-medium text-slate-300 hover:text-white transition-colors hidden sm:block'>
-                        Login
-                    </Link>
-                    <Button to={'/signup'} variant="primary" size="sm">
-                        Get Started
-                    </Button>
+                    {isLoggedIn ? (
+                        <>
+                            <Link to="/dashboard" className='flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white transition-colors'>
+                                <LayoutDashboard className="w-4 h-4" />
+                                <span className="hidden sm:inline">Dashboard</span>
+                            </Link>
+                            <button
+                                onClick={handleLogout}
+                                className='flex items-center gap-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors bg-white/5 hover:bg-white/10 px-3 py-2 rounded-lg'
+                            >
+                                <LogOut className="w-4 h-4" />
+                                <span className="hidden sm:inline">Logout</span>
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <Link to={'/login'} className='text-sm font-medium text-slate-300 hover:text-white transition-colors hidden sm:block'>
+                                Login
+                            </Link>
+                            <Button to={'/signup'} variant="primary" size="sm">
+                                Get Started
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
         </nav>

@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import { MOCK_RESUME_DATA } from "./mockData.js";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "openai/gpt-oss-120b"; // Using larger model for better intelligence
@@ -258,14 +259,28 @@ Generate a short, punchy question for the ${nextField.field} field.`;
    * Analyze what fields are missing in order of priority
    */
   analyzeMissingFields(collectedData) {
-    const MOCK_VALUES = [
-      "John Doe", "john.doe@example.com", "+1 (555) 123-4567", "San Francisco, CA", "linkedin.com/in/johndoe", "github.com/johndoe", "johndoe.dev",
-      "University of California, Berkeley", "Bachelor of Science in Computer Science",
-      "Tech Innovations Inc.", "Software Engineer",
-      "E-Commerce Platform", "Task Management App"
-    ];
+    // Flatten mock data into a Set of strings for easy lookup
+    const mockValuesSet = new Set();
+    const collectMockValues = (obj) => {
+      if (!obj) return;
+      if (typeof obj === "string") {
+        mockValuesSet.add(obj);
+      } else if (Array.isArray(obj)) {
+        obj.forEach(collectMockValues);
+      } else if (typeof obj === "object") {
+        Object.values(obj).forEach(collectMockValues);
+      }
+    };
+    collectMockValues(MOCK_RESUME_DATA);
 
-    const isMock = (val) => MOCK_VALUES.includes(val);
+    const isMock = (val) => {
+      if (!val) return false;
+      if (typeof val === 'string') return mockValuesSet.has(val);
+      // If it's an array (like skills), check if *all* items are mock items (maybe just 1 is enough to be suspicious?)
+      // Let's say if it's an exact match of string representation it's definitely mock, but that's hard.
+      // Safer: if the value is a string, check set.
+      return false;
+    };
 
     const fieldDefinitions = [
       // Personal Info (Required)
