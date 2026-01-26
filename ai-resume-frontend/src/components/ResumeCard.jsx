@@ -1,5 +1,3 @@
-// src/components/ResumeCard.jsx
-
 import React from 'react';
 import { FileText, Calendar, Trash2, Edit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +11,7 @@ const ResumeCard = ({ resume, onDelete }) => {
     };
 
     const handleDelete = async (e) => {
-        e.stopPropagation(); // Prevent card click
+        e.stopPropagation();
         
         if (!window.confirm('Are you sure you want to delete this resume?')) {
             return;
@@ -22,7 +20,7 @@ const ResumeCard = ({ resume, onDelete }) => {
         try {
             await DeleteResume(resume._id);
             if (onDelete) onDelete(resume._id);
-            window.location.reload(); // Refresh page
+            window.location.reload();
         } catch (error) {
             console.error('Delete failed:', error);
             alert('Failed to delete resume');
@@ -38,6 +36,9 @@ const ResumeCard = ({ resume, onDelete }) => {
         });
     };
 
+    // Check if thumbnail exists
+    const hasThumbnail = resume.templateId && resume.templateId.thumbnailUrl.trim() !== '';
+
     return (
         <div 
             onClick={handleEdit}
@@ -45,7 +46,26 @@ const ResumeCard = ({ resume, onDelete }) => {
         >
             {/* Preview Image */}
             <div className="aspect-[3/4] bg-gradient-to-br from-slate-50 to-slate-100 border-b border-slate-200 flex items-center justify-center relative overflow-hidden">
-                <FileText size={48} className="text-slate-300 group-hover:text-blue-400 transition-colors" />
+                {hasThumbnail ? (
+                    <>
+                        <img 
+                            src={resume.templateId.thumbnailUrl} 
+                            alt={resume.resumeName || 'Resume thumbnail'}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                                // Fallback to icon if image fails to load
+                                e.target.style.display = 'none';
+                            }}
+                        />
+                        <FileText 
+                            size={48} 
+                            className="text-slate-300 group-hover:text-blue-400 transition-colors absolute"
+                            style={{ display: 'none' }}
+                        />
+                    </>
+                ) : (
+                    <FileText size={48} className="text-slate-300 group-hover:text-blue-400 transition-colors" />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
 

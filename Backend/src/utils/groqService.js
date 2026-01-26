@@ -248,37 +248,64 @@ export const getAIResponse = async (
     return getNextQuestion("personal", "name");
   }
 
-
-
-  // MOCK DATA TO IGNORE (Values from resume.controllers.js)
+  // MOCK DATA TO IGNORE
   const MOCK_VALUES = [
     "John Doe", "San Francisco, CA", "john.doe@example.com", "+1 (555) 123-4567",
     "linkedin.com/in/johndoe", "github.com/johndoe", "johndoe.dev",
     "University of California, Berkeley", "Bachelor of Science in Computer Science",
     "Tech Innovations Inc.", "E-Commerce Platform", "Task Management App",
-    "Software Engineer" // Use with caution, but "Software Engineer" is the mock title
+    "Software Engineer" 
   ];
 
+  // --- FIX START: Improved Recursive Function ---
   const cleanseData = (data) => {
-    if (!data) return data;
+    // 1. Handle null/undefined
+    if (data === null || data === undefined) return "";
+    
+    // 2. Handle Strings
     if (typeof data === 'string') {
       if (MOCK_VALUES.some(mock => data.includes(mock))) return "";
       return data;
     }
+    
+    // 3. Handle Arrays
     if (Array.isArray(data)) {
       return data.map(cleanseData);
     }
+    
+    // 4. Handle Dates (typeof Date is 'object', but we shouldn't recurse into it)
+    if (data instanceof Date) {
+        return data.toISOString();
+    }
+
+    // 5. Handle Objects
     if (typeof data === 'object') {
       const cleaned = {};
       for (const key in data) {
-        cleaned[key] = cleanseData(data[key]);
+        // SAFETY: Only parse own properties to avoid prototype chain recursion
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+            cleaned[key] = cleanseData(data[key]);
+        }
       }
       return cleaned;
     }
+    
     return data;
   };
 
-  const cleanData = cleanseData(collectedData);
+  // SAFETY STEP: Ensure collectedData is a plain object to prevent circular recursion
+  // If collectedData is a Mongoose doc, this converts it to a plain object.
+  // If it has circular refs, this might throw, but it's safer than infinite recursion.
+  let plainData = collectedData;
+  try {
+    plainData = JSON.parse(JSON.stringify(collectedData));
+  } catch (e) {
+    console.error("Error parsing collectedData:", e);
+    // Fallback: continue with raw data but warn
+  }
+
+  const cleanData = cleanseData(plainData);
+  // --- FIX END ---
 
   // Build conversation context for GROQ
   const systemPrompt = getSystemPrompt(
@@ -302,7 +329,6 @@ export const getAIResponse = async (
     const aiResponse = await callGroqAPI(messages);
     return aiResponse;
   } catch (error) {
-    // Fallback to predefined questions if GROQ fails
     console.error("GROQ failed, using fallback question");
     return getNextQuestion(currentSection, currentField);
   }
