@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight } from 'lucide-react';
+import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight, Sparkles } from 'lucide-react';
 import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate } from '../services/resume.api';
 import { StartAgentChat, MsgAgent } from '../services/agent.api';
 import { getAllTemplates } from '../services/template.api';
@@ -290,73 +290,105 @@ const Editor = () => {
 
 
                 {/* RIGHT PANEL: Chat */}
-                <aside className="w-[400px] bg-white border-l border-slate-200 flex flex-col shadow-2xl z-20">
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                <aside className="w-[450px] bg-slate-50 border-l border-slate-200 flex flex-col shadow-xl z-20 relative overflow-hidden">
+
+                    {/* Chat Header */}
+                    <div className="p-5 border-b border-slate-200 bg-white flex justify-between items-center z-10 sticky top-0">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-md">
-                                <Bot size={20} />
+                            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700 shadow-sm border border-slate-200">
+                                <Sparkles size={18} className="text-slate-600" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-slate-800">AI Assistant</h3>
-                                <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
-                                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                                    Online
+                                <h3 className="font-bold text-slate-800 text-sm">Resume Assistant</h3>
+                                <p className="text-[11px] text-green-600 flex items-center gap-1.5 font-medium bg-green-50 px-2 py-0.5 rounded-full w-fit mt-0.5">
+                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                                    Online & Ready
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-                        {messages.map((msg, index) => (
-                            <div key={index} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white shadow-md'
-                                    }`}>
-                                    {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+                    {/* Chat Messages */}
+                    <div className="flex-1 overflow-y-auto p-5 space-y-6">
+                        {messages.length === 0 && (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-60">
+                                <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-white rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-slate-100 transform rotate-3">
+                                    <Bot size={32} className="text-slate-400" />
                                 </div>
-                                <div className={`max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed shadow-sm ${msg.role === 'user'
-                                    ? 'bg-blue-600 text-white rounded-tr-none'
-                                    : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
+                                <p className="text-slate-500 font-medium">Start the conversation to build your resume.</p>
+                            </div>
+                        )}
+
+                        {messages.map((msg, index) => (
+                            <div
+                                key={index}
+                                className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-4 duration-500`}
+                            >
+                                {/* Avatar */}
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${msg.role === 'user'
+                                    ? 'bg-white border-slate-100'
+                                    : 'bg-gradient-to-br from-blue-600 to-violet-600 border-transparent text-white'
+                                    }`}>
+                                    {msg.role === 'user' ? (
+                                        <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
+                                            <User size={18} />
+                                        </div>
+                                    ) : (
+                                        <Bot size={18} />
+                                    )}
+                                </div>
+
+                                {/* Message Bubble */}
+                                <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm relative group-hover:shadow-md transition-shadow ${msg.role === 'user'
+                                    ? 'bg-gradient-to-br from-blue-600 to-violet-600 text-white rounded-tr-sm shadow-blue-500/10'
+                                    : 'bg-white text-slate-700 border border-slate-100 rounded-tl-sm'
                                     }`}>
                                     {msg.content.split('\n').map((line, i) => (
-                                        <p key={i} className="mb-1 last:mb-0">{line}</p>
+                                        <p key={i} className={`mb-1.5 last:mb-0 ${msg.role === 'user' ? 'text-blue-50' : 'text-slate-600'}`}>
+                                            {line}
+                                        </p>
                                     ))}
                                 </div>
                             </div>
                         ))}
+
+                        {/* Typing Indicator */}
                         {chatLoading && (
-                            <div className="flex gap-3">
-                                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                                    <Bot size={16} />
+                            <div className="flex gap-4 animate-in fade-in zoom-in duration-300">
+                                <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 shadow-md text-white">
+                                    <Bot size={18} />
                                 </div>
-                                <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-none p-4 shadow-sm">
-                                    <div className="flex gap-1.5">
-                                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
-                                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                                    </div>
+                                <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm p-4 shadow-sm flex items-center gap-1.5 w-fit">
+                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
                                 </div>
                             </div>
                         )}
-                        <div ref={messagesEndRef} />
+                        <div ref={messagesEndRef} className="h-2" />
                     </div>
 
-                    <div className="p-4 bg-white border-t border-slate-200">
-                        <form onSubmit={handleSendMessage} className="relative">
+                    {/* Input Area */}
+                    <div className="p-5 bg-white border-t border-slate-200 z-20">
+                        <form onSubmit={handleSendMessage} className="relative group">
                             <input
                                 type="text"
                                 value={inputMessage}
                                 onChange={(e) => setInputMessage(e.target.value)}
                                 placeholder="Type your answer..."
-                                className="w-full pl-5 pr-14 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium placeholder:text-slate-400"
+                                className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-slate-400 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400 text-slate-700 shadow-inner relative z-10"
                             />
                             <button
                                 type="submit"
                                 disabled={!inputMessage.trim() || chatLoading}
-                                className="absolute right-2 top-2 p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                                className="absolute right-2 top-2 p-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 z-20 shadow-sm"
                             >
-                                <Send size={18} />
+                                <Send size={18} strokeWidth={2.5} />
                             </button>
                         </form>
+                        <p className="text-center text-[10px] text-slate-400 mt-3 font-medium">
+                            AI-generated content may be inaccurate. Check important details.
+                        </p>
                     </div>
                 </aside>
             </div>
