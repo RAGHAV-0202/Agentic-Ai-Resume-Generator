@@ -169,12 +169,9 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   Object.keys(result.updatedData).forEach(key => {
     if (key === 'personal' || key === 'skills') {
       resume.data[key] = { ...resume.data[key], ...result.updatedData[key] };
-    } else if (Array.isArray(result.updatedData[key])) {
-      // For arrays, if agent added new items, append them
-      if (result.updatedData[key].length > resume.data[key].length) {
-        resume.data[key] = result.updatedData[key];
-      }
     } else {
+      // For arrays and other fields, just update
+      // result.updatedData is the new authoritative state derived from currentData
       resume.data[key] = result.updatedData[key];
     }
   });
@@ -186,6 +183,7 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   resume.conversationState.currentSection = result.nextSection;
   resume.conversationState.currentField = result.nextField;
   resume.conversationState.isComplete = result.isComplete;
+  resume.conversationState.pendingArrayAddition = result.pendingArrayAddition; // ✅ Persist flag
 
   // Mark conversation complete if done
   if (result.isComplete) {
