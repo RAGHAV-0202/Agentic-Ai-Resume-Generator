@@ -62,6 +62,7 @@ const cleanMockData = (data, seen = new WeakSet()) => {
   if (data === null || data === undefined) return null;
 
   if (typeof data === 'string') {
+    if (data === "__SKIPPED__") return ""; // Strip skipped values
     return containsMockData(data) ? "" : data;
   }
 

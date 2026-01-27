@@ -331,7 +331,11 @@ Generate a short, punchy question for the ${nextField.field} field.`;
   /**
    * Analyze what fields are missing in order of priority
    */
-  analyzeMissingFields(collectedData) {
+  /**
+   * Analyze what fields are missing in order of priority
+   * Prioritizes the current section to prevent jumping back and forth
+   */
+  analyzeMissingFields(collectedData, currentSection = null) {
     // Flatten mock data into a Set of strings for easy lookup
     const mockValuesSet = new Set();
     const collectMockValues = (obj) => {
@@ -350,6 +354,13 @@ Generate a short, punchy question for the ${nextField.field} field.`;
       if (!val) return false;
       if (typeof val === 'string') return mockValuesSet.has(val);
       return false;
+    };
+
+    const isMissingValue = (val) => {
+      // If it's explicitly skipped, it's NOT missing
+      if (val === "__SKIPPED__") return false;
+
+      return !val || val === "undefined" || (Array.isArray(val) && val.length === 0) || String(val).trim() === "" || isMock(val);
     };
 
     const fieldDefinitions = [
@@ -393,82 +404,73 @@ Generate a short, punchy question for the ${nextField.field} field.`;
       { section: "achievements", field: "items", description: "Achievements and awards", required: false },
     ];
 
-    const missingFields = [];
+    let missingFields = [];
 
-    // Helper to check if a specific section field is missing
-    const checkField = (data, fieldDef) => {
-      const { section, field, isArray } = fieldDef;
+    // Logic:
+    // 1. If we have a currentSection, ONLY check that section first.
+    // 2. If valid fields are missing in currentSection, return those immediately.
+    // 3. If currentSection is complete (or not provided), scan all sections in order.
 
-      if (section === "personal") {
-        const val = data.personal?.[field];
-        return !val || val === "undefined" || String(val).trim() === "" || isMock(val);
-      }
+    // Function to scan a specific section
+    const scanSection = (sectionName) => {
+      const foundMissing = [];
+      const sectionDefs = fieldDefinitions.filter(f => f.section === sectionName);
 
-      if (section === "skills") {
-        return !data.skills?.[field] || data.skills[field].length === 0;
-      }
-
-      if (section === "achievements") {
-        return !data.achievements || data.achievements.length === 0;
-      }
-
-      return false;
-    };
-
-    // Iterate through sections logically
-    // We group field defs by section to handle arrays correctly
-    const sections = ["personal", "education", "experience", "projects", "skills", "achievements"];
-
-    for (const section of sections) {
-      const sectionDefs = fieldDefinitions.filter(f => f.section === section);
-
-      if (["education", "experience", "projects"].includes(section)) {
-        const sectionData = collectedData[section] || [];
-
-        // If empty, we need at least one entry?
-        // If it's education, yes (marked as required fields).
-        // If it's experience, it's optional? But usually we want 1.
-        // Let's assume we always check index 0 if empty.
-
+      if (["education", "experience", "projects"].includes(sectionName)) {
+        const sectionData = collectedData[sectionName] || [];
+        // Always check at least the first item or existing items
         const count = Math.max(1, sectionData.length);
 
         for (let i = 0; i < count; i++) {
           const entry = sectionData[i] || {};
-
           for (const fieldDef of sectionDefs) {
             const val = entry[fieldDef.field];
-            const isMissing = !val || val === "undefined" || (Array.isArray(val) && val.length === 0) || String(val).trim() === "" || isMock(val);
-
-            // If missing and (required OR (optional but we are already asking about this entry))
-            // Simplification: asking all fields for the entry.
-
-            // Optimization: If the entry is completely empty (new), we only really trigger heavily on 'required' fields.
-            // But we want to guide them through.
-
-            if (isMissing) {
-              // Only add if we don't have this field already (though we are iterating fresh)
-              // We clone the def and add arrayIndex
-              missingFields.push({ ...fieldDef, arrayIndex: i });
+            if (isMissingValue(val)) {
+              foundMissing.push({ ...fieldDef, arrayIndex: i });
             }
           }
         }
       } else {
         // Simple sections
         for (const fieldDef of sectionDefs) {
-          if (checkField(collectedData, fieldDef)) {
-            missingFields.push(fieldDef);
+          const { section, field } = fieldDef;
+          let val;
+          if (section === "personal") val = collectedData.personal?.[field];
+          else if (section === "skills") val = collectedData.skills?.[field];
+          else if (section === "achievements") val = collectedData.achievements;
+
+          if (isMissingValue(val)) {
+            foundMissing.push(fieldDef);
           }
         }
       }
+      return foundMissing;
+    };
+
+    // Phase 1: Check Current Section Priority
+    if (currentSection) {
+      const currentSectionMissing = scanSection(currentSection);
+      if (currentSectionMissing.length > 0) {
+        // If we found missing fields in current context, return ONLY them to stay focused
+        return currentSectionMissing;
+      }
     }
 
-    // Sort logic or prioritize?
-    // The loop order (Personal -> Education -> ...) implies priority.
-    // We just return the first one found usually.
+    // Phase 2: Global Scan (if current section is done or not set)
+    const sections = ["personal", "education", "experience", "projects", "skills", "achievements"];
 
-    // FILTER: We only want to enable "Optional" fields if the "Required" fields of that same section/entry are filled?
-    // Or just return all missing. The caller picks [0].
-    // Since we iterate in order, [0] will be the first missing field of the first section.
+    // Optimization: If we just finished 'currentSection', we should start scanning from the NEXT section to the end, 
+    // then wrap around to the beginning (to fill skips)? 
+    // Or just scan linearly? Linear scan is safest to ensure 'personal' is filled.
+    // But to prevent "backtracking" to optional fields we skipped:
+    // We already handle "__SKIPPED__". So linear scan is fine, assuming skipped fields are marked.
+    // If they aren't marked skipped, we WILL loop back.
+    // But since we prioritize currentSection, we won't loop back UNTIL we leave the current section.
+
+    for (const section of sections) {
+      if (section === currentSection) continue; // Already checked
+      missingFields = missingFields.concat(scanSection(section));
+    }
 
     return missingFields;
   }

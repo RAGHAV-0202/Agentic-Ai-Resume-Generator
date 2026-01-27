@@ -415,13 +415,51 @@ export const skipCurrentField = asyncHandler(async (req, res) => {
   // Clean mock data
   const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
-  // Get next question without updating current field
-  const result = await agent.generateNextQuestion(cleanedData, resume.chatHistory);
+  // Identify what is being skipped
+  // We need to know the CURRENT field being asked. 
+  // conversationState.currentField usually holds this.
+  const skippedSection = resume.conversationState.currentSection;
+  const skippedField = resume.conversationState.currentField;
+  const skippedArrayIndex = resume.conversationState.currentArrayIndex || 0; // Assuming we track this or default 0
+
+  if (skippedSection && skippedField) {
+    if (["education", "experience", "projects"].includes(skippedSection)) {
+      // Ensure array exists
+      resume.data[skippedSection] = resume.data[skippedSection] || [];
+      while (resume.data[skippedSection].length <= skippedArrayIndex) {
+        resume.data[skippedSection].push({});
+      }
+      // Mark as skipped
+      resume.data[skippedSection][skippedArrayIndex][skippedField] = "__SKIPPED__";
+    } else if (skippedSection === "personal") {
+      resume.data.personal = resume.data.personal || {};
+      resume.data.personal[skippedField] = "__SKIPPED__";
+    } else if (skippedSection === "skills") {
+      resume.data.skills = resume.data.skills || {};
+      resume.data.skills[skippedField] = ["__SKIPPED__"]; // Array type
+    }
+
+    // Update cleanedData for immediate use
+    // (Since we just modified resume.data, let's refresh cleanedData or patch it)
+    if (["education", "experience", "projects"].includes(skippedSection)) {
+      if (!cleanedData[skippedSection]) cleanedData[skippedSection] = [];
+      if (!cleanedData[skippedSection][skippedArrayIndex]) cleanedData[skippedSection][skippedArrayIndex] = {};
+      cleanedData[skippedSection][skippedArrayIndex][skippedField] = "__SKIPPED__";
+    } else if (skippedSection === "personal") {
+      if (!cleanedData.personal) cleanedData.personal = {};
+      cleanedData.personal[skippedField] = "__SKIPPED__";
+    }
+  }
+
+  // Get next question with updated data (so it sees the skip)
+  // Also pass currentSection to prioritize staying in context
+  const result = await agent.generateNextQuestion(cleanedData, resume.chatHistory, false, resume.conversationState.currentSection);
 
   // Update conversation state to next field
   resume.conversationState.currentSection = result.nextSection;
   resume.conversationState.currentField = result.nextField;
   resume.conversationState.isComplete = result.isComplete;
+  resume.conversationState.pendingArrayAddition = result.pendingArrayAddition;
 
   await resume.addMessage("assistant", result.message);
   await resume.save();
