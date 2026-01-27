@@ -1,5 +1,5 @@
 const escapeLatex = (text) => {
-  if (!text) return "";
+  if (!text || text === "__SKIPPED__" || text === "skip") return "";
 
   const replacements = {
     "\\": "\\textbackslash{}",
@@ -15,6 +15,9 @@ const escapeLatex = (text) => {
   };
 
   let escaped = text.toString().trim();
+
+  // Double check again after trim (though probably redundant)
+  if (escaped === "__SKIPPED__") return "";
 
   // First escape backslash, then others
   escaped = escaped.replace(/\\/g, replacements["\\"]);

@@ -145,6 +145,9 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   // Initialize agent
   const agent = createAgent(process.env.GROQ_API_KEY);
 
+  // Capture previous section state for auto-recompile logic
+  const previousSection = resume.conversationState.currentSection;
+
   // Clean mock data before processing
   // CRITICAL FIX: Must convert Mongoose object to plain object to ensure all fields are copied
   const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
@@ -195,7 +198,12 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
 
   // Auto-recompile PDF if significant data was added and template exists
   let pdfRecompiled = false;
-  if (result.extractedFields.length > 0 && resume.templateId) {
+
+  // Eager Compiler Fix: Only recompile if section finished or conversation complete
+  const isSectionFinished = previousSection !== result.nextSection;
+  const isConversationFinished = result.isComplete || resume.conversationState.isComplete;
+
+  if (result.extractedFields.length > 0 && resume.templateId && (isSectionFinished || isConversationFinished)) {
     try {
       const template = await Template.findById(resume.templateId);
       if (template) {

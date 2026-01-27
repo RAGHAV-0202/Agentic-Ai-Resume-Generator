@@ -20,39 +20,68 @@ class ResumeAgent {
   /**
    * Call Groq API with tool support
    */
+  /**
+   * Call Groq API with tool support and model rotation
+   */
   async callGroq(messages, tools = null, toolChoice = "auto") {
-    const payload = {
-      model: GROQ_MODEL,
-      messages,
-      temperature: 0.7,
-    };
+    // Model pool for rotation/fallback
+    const MODELS = [
+      "llama-3.3-70b-versatile",
+      "openai/gpt-oss-20b",
+      "llama-3.1-8b-instant",
+    ];
 
-    if (tools) {
-      payload.tools = tools;
-      payload.tool_choice = toolChoice;
-    }
+    const makeRequest = async (model, attempt = 1) => {
+      const payload = {
+        model: model,
+        messages,
+        temperature: 0.7,
+      };
 
-    try {
-      const response = await fetch(GROQ_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-
-
-      if (!response.ok) {
-        throw new Error(`Groq API error: ${response.status}`);
+      if (tools) {
+        payload.tools = tools;
+        payload.tool_choice = toolChoice;
       }
 
-      const data = await response.json();
-      return data.choices[0].message;
-    } catch (error) {
-      console.error("Groq API error:", error);
-      throw error;
+      try {
+        const response = await fetch(GROQ_API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          // specific handling for rate limits (429)
+          if (response.status === 429) {
+            throw new Error(`Rate limit exceeded for ${model}`);
+          }
+          throw new Error(`Groq API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message;
+      } catch (error) {
+        console.warn(`Attempt ${attempt} failed with model ${model}:`, error.message);
+        throw error;
+      }
+    };
+
+    // Try primary model first, then rotate if rate limited
+    for (let i = 0; i < MODELS.length; i++) {
+      try {
+        return await makeRequest(MODELS[i], i + 1);
+      } catch (error) {
+        // If it's the last model, throw the error
+        if (i === MODELS.length - 1) {
+          console.error("All models failed:", error);
+          throw error;
+        }
+        // Otherwise loop to next model
+        console.log(`Switching to fallback model: ${MODELS[i + 1]}`);
+      }
     }
   }
 
@@ -462,18 +491,22 @@ Generate a short, punchy question for the ${nextField.field} field.`;
 
     // Phase 2: Global Scan (if current section is done or not set)
     const sections = ["personal", "education", "experience", "projects", "skills", "achievements"];
-
-    // Optimization: If we just finished 'currentSection', we should start scanning from the NEXT section to the end, 
-    // then wrap around to the beginning (to fill skips)? 
-    // Or just scan linearly? Linear scan is safest to ensure 'personal' is filled.
-    // But to prevent "backtracking" to optional fields we skipped:
-    // We already handle "__SKIPPED__". So linear scan is fine, assuming skipped fields are marked.
-    // If they aren't marked skipped, we WILL loop back.
-    // But since we prioritize currentSection, we won't loop back UNTIL we leave the current section.
+    const currentSectionIndex = currentSection ? sections.indexOf(currentSection) : -1;
 
     for (const section of sections) {
       if (section === currentSection) continue; // Already checked
-      missingFields = missingFields.concat(scanSection(section));
+
+      const sectionIndex = sections.indexOf(section);
+      let sectionMissing = scanSection(section);
+
+      // CRITICAL LOGIC FIX: "Priority Queue" Loop Prevention
+      // If we are looking at a PREVIOUS section (e.g. looking at Personal while in Education),
+      // we must ONLY surface REQUIRED fields. We should NOT jump back for optional fields like LinkedIn.
+      if (currentSectionIndex !== -1 && sectionIndex < currentSectionIndex) {
+        sectionMissing = sectionMissing.filter(f => f.required === true);
+      }
+
+      missingFields = missingFields.concat(sectionMissing);
     }
 
     return missingFields;
@@ -486,6 +519,17 @@ Generate a short, punchy question for the ${nextField.field} field.`;
    * Process user message and update database intelligently
    */
   async processMessage(userMessage, currentData, conversationHistory, conversationState = {}) {
+    // Step 1: Extract all fields from message (ALWAYS EXTRACT FIRST to catch data in "Yes" messages)
+    const extractionResult = await this.extractMultipleFields(
+      userMessage,
+      conversationState.currentSection || "personal", // Use state context
+      currentData
+    );
+
+    // Deep clone data for updates
+    const updatedData = JSON.parse(JSON.stringify(currentData));
+    let optimizationPromises = [];
+
     // Check for "Add More" Confirmation if pending
     if (conversationState.pendingArrayAddition) {
       // Simple heuristic for Yes/No
@@ -493,7 +537,6 @@ Generate a short, punchy question for the ${nextField.field} field.`;
       const yesPatterns = [/^yes/i, /^sure/i, /^ok/i, /^yep/i, /^yeah/i, /^add/i, /^one more/i];
       const isYes = yesPatterns.some(p => p.test(lowerMsg));
 
-      const updatedData = JSON.parse(JSON.stringify(currentData));
       const currentSection = conversationState.currentSection;
 
       if (isYes) {
@@ -501,64 +544,52 @@ Generate a short, punchy question for the ${nextField.field} field.`;
         updatedData[currentSection] = updatedData[currentSection] || [];
         updatedData[currentSection].push({});
 
-        // Generate next question for this new item
-        const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, currentSection);
+        const newIndex = updatedData[currentSection].length - 1;
 
-        return {
-          updatedData,
-          extractedFields: [],
-          nextQuestion: nextQuestion.message,
-          isComplete: false,
-          nextSection: currentSection,
-          nextField: nextQuestion.nextField,
-          wasUpdate: false,
-          wasSkipped: false,
-          pendingArrayAddition: false // Reset flag
-        };
+        // "Ghost Entry" Fix: If we extracted data, apply it to this NEW index
+        if (extractionResult.extracted_fields.length > 0) {
+          for (const extracted of extractionResult.extracted_fields) {
+            if (extracted.section === currentSection) {
+              // Apply to new index
+              extracted.arrayIndex = newIndex;
+            }
+          }
+        }
       } else {
-        // No, move on
-        // We need to force move to next section
-        // generateNextQuestion with currentSection passed in checks for transition
-        // But since we are here, we know we want to transition.
-
-        // We rely on generateNextQuestion detecting the transition naturally.
-        // BUT, if we pass currentSection as "education", it triggers "Add more" loop.
-        // We need to pass the NEXT section.
-
-        // How do we know the next section? analyzeMissingFields knows.
-        const missing = this.analyzeMissingFields(updatedData);
-        const nextField = missing[0]; // Should be in next section since current is full
-        const nextSection = nextField ? nextField.section : "complete";
-
-        // Generate question for the NEXT section directly
-        const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, nextSection);
-
-        return {
-          updatedData,
-          extractedFields: [],
-          nextQuestion: nextQuestion.message,
-          isComplete: nextQuestion.isComplete,
-          nextSection: nextQuestion.nextSection,
-          nextField: nextQuestion.nextField,
-          wasUpdate: false,
-          wasSkipped: false,
-          pendingArrayAddition: false // Reset flag
-        };
+        // No, move on. 
+        // Force transition handled later by generateNextQuestion or explicit check
       }
     }
 
-    // Step 1: Extract all fields from message
-    const extractionResult = await this.extractMultipleFields(
-      userMessage,
-      conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1].nextSection : "personal",
-      // If we provided conversationState, we could use that. currentSection is safer.
-      currentData
-    );
+    // Handle Skip Intent (Explicit Persistence)
+    if (extractionResult.user_wants_to_skip) {
+      const skippedSection = conversationState.currentSection;
+      const skippedField = conversationState.currentField;
+      const skippedArrayIndex = conversationState.currentArrayIndex || 0;
 
-    // Step 2: Update data intelligently
-    const updatedData = JSON.parse(JSON.stringify(currentData)); // Deep clone
-    let optimizationPromises = [];
+      if (skippedSection && skippedField) {
+        // Write __SKIPPED__ to data
+        if (["education", "experience", "projects"].includes(skippedSection)) {
+          updatedData[skippedSection] = updatedData[skippedSection] || [];
+          while (updatedData[skippedSection].length <= skippedArrayIndex) {
+            updatedData[skippedSection].push({});
+          }
+          updatedData[skippedSection][skippedArrayIndex][skippedField] = "__SKIPPED__";
+        } else if (skippedSection === "personal") {
+          updatedData.personal = updatedData.personal || {};
+          updatedData.personal[skippedField] = "__SKIPPED__";
+        } else if (skippedSection === "skills") {
+          updatedData.skills = updatedData.skills || {};
+          // For skills array, maybe push "__SKIPPED__" to array? 
+          // Or actually if it's the whole section...
+          // Skills is an object with keys "languages", "technologies"
+          // skippedField would be "languages"
+          updatedData.skills[skippedField] = ["__SKIPPED__"];
+        }
+      }
+    }
 
+    // Step 2: Update data intelligently (Apply extracted fields)
     for (const extracted of extractionResult.extracted_fields) {
       const { section, field, value, arrayIndex = 0 } = extracted;
 
@@ -567,11 +598,11 @@ Generate a short, punchy question for the ${nextField.field} field.`;
         updatedData.personal[field] = value;
       } else if (section === "skills") {
         updatedData.skills = updatedData.skills || {};
-        const items = value.split(",").map((s) => s.trim()).filter(Boolean);
+        const items = value.split(/[,\n]+/).map((s) => s.trim()).filter(Boolean); // Split on newline too
         updatedData.skills[field] = items;
       } else if (section === "achievements") {
         updatedData.achievements = updatedData.achievements || [];
-        const items = value.split(",").map((s) => s.trim()).filter(Boolean);
+        const items = value.split(/[,\n]+/).map((s) => s.trim()).filter(Boolean);
         updatedData.achievements.push(...items);
       } else if (["education", "experience", "projects"].includes(section)) {
         updatedData[section] = updatedData[section] || [];
@@ -585,9 +616,7 @@ Generate a short, punchy question for the ${nextField.field} field.`;
         if (["highlights", "coursework", "technologies"].includes(field)) {
           let items = [];
 
-          // Split by comma or semicolon
           if (typeof value === 'string') {
-            // If it's a long paragraph (highlights), try splitting by periods too
             if (field === 'highlights' && value.length > 50 && !value.includes(',')) {
               items = value.split(/[.;\n]+/).map(s => s.trim()).filter(Boolean);
             } else {
@@ -599,7 +628,7 @@ Generate a short, punchy question for the ${nextField.field} field.`;
 
           updatedData[section][arrayIndex][field] = items;
 
-          // Auto-optimize highlights for experience/projects
+          // Auto-optimize highlights
           if (field === "highlights" && (section === "experience" || section === "projects")) {
             for (let i = 0; i < items.length; i++) {
               optimizationPromises.push(
@@ -608,8 +637,7 @@ Generate a short, punchy question for the ${nextField.field} field.`;
                     updatedData[section][arrayIndex][field][i] = optimized;
                   })
                   .catch(err => {
-                    console.error("Optimization failed for item:", i, err);
-                    // Keep original value on error
+                    console.error("Optimization failed:", err);
                     updatedData[section][arrayIndex][field][i] = items[i];
                   })
               );
@@ -621,12 +649,38 @@ Generate a short, punchy question for the ${nextField.field} field.`;
       }
     }
 
-    // Wait for all optimizations to complete
+    // Wait for optimizations
     await Promise.all(optimizationPromises);
 
+    // Decide execution flow for "No" on Add More
+    // If pendingArrayAddition was true and user said NO:
+    // We want to FORCE move to next section.
+    let nextSectionExplicit = null;
+    if (conversationState.pendingArrayAddition) {
+      // Re-evaluate Yes/No locally
+      const lowerMsg = userMessage.toLowerCase().trim();
+      const isYes = [/^yes/i, /^sure/i, /^ok/i, /^yep/i, /^yeah/i, /^add/i].some(p => p.test(lowerMsg));
+      if (!isYes) {
+        // Find the next section manually to force transition
+        const sections = ["personal", "education", "experience", "projects", "skills", "achievements", "complete"];
+        const currIdx = sections.indexOf(conversationState.currentSection);
+        if (currIdx !== -1 && currIdx < sections.length - 1) {
+          nextSectionExplicit = sections[currIdx + 1];
+        } else {
+          nextSectionExplicit = "complete";
+        }
+      }
+    }
+
     // Step 3: Generate next question
-    // Pass currentSection from state to allow transition detection
-    const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, conversationState.currentSection);
+    // If we have an explicit next section (from "No" to add more), pass it.
+    // Otherwise pass conversationState.currentSection (standard flow).
+    const contextSection = nextSectionExplicit || conversationState.currentSection;
+
+    // IF we just added a NEW entry (isYes), we want to stay in current section. 
+    // contextSection handles that (matches current).
+
+    const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, contextSection);
 
     return {
       updatedData,
