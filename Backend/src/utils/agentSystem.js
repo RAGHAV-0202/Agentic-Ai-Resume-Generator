@@ -188,9 +188,10 @@ RULES:
   }
 
   // --- 5. GENERATE NEXT QUESTION ---
-  async generateNextQuestion(collectedData, conversationHistory) {
+  async generateNextQuestion(collectedData, conversationHistory = []) {
     const missingFields = this.analyzeMissingFields(collectedData);
-    const lastMsg = conversationHistory[conversationHistory.length - 1];
+    const safeHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
+    const lastMsg = safeHistory.length > 0 ? safeHistory[safeHistory.length - 1] : null;
 
     // Check if we should ask "Add More?"
     const checkAddMore = (section, fields) => {
@@ -233,9 +234,10 @@ RULES:
   }
 
   // --- 6. PROCESS MESSAGE (Logic Fix) ---
-  async processMessage(userMessage, currentData, conversationHistory) {
+  async processMessage(userMessage, currentData, conversationHistory = []) {
     const updatedData = JSON.parse(JSON.stringify(currentData));
-    const lastState = conversationHistory[conversationHistory.length - 1] || {};
+    const safeHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
+    const lastState = safeHistory.length > 0 ? safeHistory[safeHistory.length - 1] : {};
 
     // HANDLE "ADD MORE" - The Loop Breaker
     if (lastState.nextField === "add_more") {
@@ -262,10 +264,12 @@ RULES:
     // Determine Index for Extraction
     const currentSection = lastState.nextSection || "personal";
     let nextIndex = 0;
+
     if (["education", "experience", "projects"].includes(currentSection)) {
       // If we just added an empty object (from the Yes logic above in previous turn), use that index
-      nextIndex = (updatedData[currentSection]?.length || 1) - 1;
-      if (nextIndex < 0) nextIndex = 0;
+      // Otherwise, use the last index to update it (or 0 if empty)
+      const arr = updatedData[currentSection];
+      nextIndex = arr && arr.length > 0 ? arr.length - 1 : 0;
     }
 
     // Extract
