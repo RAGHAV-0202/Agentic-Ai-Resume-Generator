@@ -1,4 +1,14 @@
-// src/controllers/agent.controller.js
+/**
+ * ====================================================================
+ * ROBUST AGENTIC RESUME CONTROLLER - PRODUCTION VERSION 2.0
+ * ====================================================================
+ * 
+ * This controller implements best practices for:
+ * - Proper state management
+ * - Error handling and recovery
+ * - Data consistency
+ * - Performance optimization
+ */
 
 import Resume from "../models/Resume.model.js";
 import Template from "../models/Template.model.js";
@@ -8,17 +18,75 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { createAgent } from "../utils/agentSystem.js";
 import { generateLatex } from "../utils/LatexGenerator.js";
 import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
-import { cleanMockData, isSkipRequest } from "../utils/groqService.js";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// ============================================================================
-// AGENTIC CHAT CONTROLLER
-// ============================================================================
+// ====================================================================
+// UTILITY FUNCTIONS
+// ====================================================================
 
 /**
- * Start a new conversation with the AI agent
+ * Clean mock data and prepare for frontend
+ */
+const cleanResumeData = (data) => {
+  const cleaned = JSON.parse(JSON.stringify(data));
+
+  const removeMockValues = (obj) => {
+    if (typeof obj === "string") {
+      if (obj === "__SKIPPED__") return "";
+      // Add more mock value detection if needed
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj
+        .map(removeMockValues)
+        .filter(item => {
+          if (typeof item === "string") return item !== "";
+          if (typeof item === "object" && item !== null) {
+            return Object.values(item).some(v => v !== "" && v !== null);
+          }
+          return true;
+        });
+    }
+
+    if (obj && typeof obj === "object") {
+      const result = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const cleanedValue = removeMockValues(value);
+        if (cleanedValue !== "" && cleanedValue !== null) {
+          if (!(Array.isArray(cleanedValue) && cleanedValue.length === 0)) {
+            result[key] = cleanedValue;
+          }
+        }
+      }
+      return result;
+    }
+
+    return obj;
+  };
+
+  return removeMockValues(cleaned);
+};
+
+/**
+ * Safely convert Mongoose document to plain object
+ */
+const toPlainObject = (data) => {
+  if (!data) return {};
+  if (typeof data.toObject === "function") {
+    return data.toObject();
+  }
+  return JSON.parse(JSON.stringify(data));
+};
+
+// ====================================================================
+// CONVERSATION MANAGEMENT
+// ====================================================================
+
+/**
+ * Start a new agentic conversation
  */
 export const startAgenticConversation = asyncHandler(async (req, res) => {
   const { resumeId } = req.body;
@@ -34,12 +102,10 @@ export const startAgenticConversation = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Resume not found or unauthorized");
   }
 
-  // If conversation already started, return last AI message
+  // If conversation already started, return last state
   if (resume.chatHistory.length > 0) {
     const lastMessage = resume.chatHistory[resume.chatHistory.length - 1];
-
-    // Clean mock data before sending
-    const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+    const cleanedData = cleanResumeData(toPlainObject(resume.data));
 
     return res.status(200).json(
       new ApiResponse(200, {
@@ -47,47 +113,54 @@ export const startAgenticConversation = asyncHandler(async (req, res) => {
         conversationState: resume.conversationState,
         resumeData: cleanedData,
         chatHistory: resume.chatHistory,
-      })
+      }, "Conversation resumed")
     );
   }
 
   // Initialize agent
   const agent = createAgent(process.env.GROQ_API_KEY);
+  const cleanedData = cleanResumeData(toPlainObject(resume.data));
 
-  // Clean mock data before passing to agent
-  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+  try {
+    // Generate first question
+    const result = await agent.generateNextQuestion(cleanedData, []);
 
-  // Generate first question
-  const result = await agent.generateNextQuestion(cleanedData, []);
+    // Save AI message with metadata
+    await resume.addMessage("assistant", result.message);
 
-  // Save AI message
-  await resume.addMessage("assistant", result.message);
+    // Update conversation state
+    resume.conversationState = {
+      currentSection: result.nextSection,
+      currentField: result.nextField,
+      currentArrayIndex: result.arrayIndex || 0,
+      pendingArrayAddition: result.pendingArrayAddition || false,
+      isComplete: result.isComplete || false
+    };
 
-  // Update conversation state
-  resume.conversationState.currentSection = result.nextSection;
-  resume.conversationState.currentField = result.nextField;
-  resume.conversationState.isComplete = result.isComplete;
-  await resume.save();
+    await resume.save();
 
-  res.status(200).json(
-    new ApiResponse(200, {
-      aiMessage: result.message,
-      conversationState: resume.conversationState,
-      resumeData: cleanedData,
-      chatHistory: resume.chatHistory,
-    })
-  );
+    res.status(200).json(
+      new ApiResponse(200, {
+        aiMessage: result.message,
+        conversationState: resume.conversationState,
+        resumeData: cleanedData,
+        chatHistory: resume.chatHistory,
+      }, "Conversation started successfully")
+    );
+  } catch (error) {
+    console.error("❌ Failed to start conversation:", error);
+    throw new ApiError(500, "Failed to start conversation. Please try again.");
+  }
 });
 
 /**
- * Send message to the AI agent
- * Agent intelligently extracts data, updates database, and generates next question
+ * Send message to the agentic system
  */
 export const sendAgenticMessage = asyncHandler(async (req, res) => {
   const { resumeId, message } = req.body;
   const userId = req.user._id;
 
-  if (!resumeId || !message) {
+  if (!resumeId || !message?.trim()) {
     throw new ApiError(400, "resumeId and message are required");
   }
 
@@ -100,59 +173,17 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   // Save user message
   await resume.addMessage("user", message);
 
-  // ✅ CHECK FOR SKIP REQUEST FIRST
-  if (isSkipRequest(message)) {
-    console.log("🔄 Skip detected - moving to next field");
-
-    // Initialize agent
-    const agent = createAgent(process.env.GROQ_API_KEY);
-    const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
-
-    // Force move to next field/section
-    const result = await agent.generateNextQuestion(cleanedData, resume.chatHistory); // Note: Original new.js had a force skip flag, but generateNextQuestion signature in agentSystem.js might not support it yet.
-    // However, the user provided agent.new.js which USES it: agent.generateNextQuestion(cleanedData, resume.chatHistory, true);
-    // But I haven't updated agentSystem.js yet to support the 3rd argument. 
-    // The fixes_needed.md said "You need to modify your agentSystem.js file".
-    // I don't have agentSystem.js in the file list to edit in this step? Wait, I do.
-    // But for now let's just use the logic from agent.new.js and assume I will fix agentSystem.js next or it's not strictly required if I use the skipCurrentField logic which calls generateNextQuestion?
-    // Actually, agent.new.js calls generateNextQuestion with true.
-    // Let's implement what is in agent.new.js.
-
-    // Logic from agent.new.js:
-    const skipResult = await agent.generateNextQuestion(cleanedData, resume.chatHistory, true); // true = skip current
-
-    // Update conversation state
-    resume.conversationState.currentSection = skipResult.nextSection;
-    resume.conversationState.currentField = skipResult.nextField;
-    resume.conversationState.isComplete = skipResult.isComplete;
-
-    // Save AI response
-    await resume.addMessage("assistant", `No problem! Let's move on. ${skipResult.message}`);
-    await resume.save();
-
-    return res.status(200).json(
-      new ApiResponse(200, {
-        aiMessage: `No problem! Let's move on. ${skipResult.message}`,
-        conversationState: resume.conversationState,
-        resumeData: cleanedData,
-        wasSkipped: true,
-        isComplete: skipResult.isComplete,
-        chatHistory: resume.chatHistory,
-      })
-    );
-  }
-
   // Initialize agent
   const agent = createAgent(process.env.GROQ_API_KEY);
 
-  // Capture previous section state for auto-recompile logic
+  // Track previous section for PDF recompilation logic
   const previousSection = resume.conversationState.currentSection;
 
-  // Clean mock data before processing
-  // CRITICAL FIX: Must convert Mongoose object to plain object to ensure all fields are copied
-  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+  // Get clean data
+  const plainData = toPlainObject(resume.data);
+  const cleanedData = cleanResumeData(plainData);
 
-  // Build conversation history for context
+  // Build conversation context
   const conversationHistory = resume.chatHistory.map((msg) => ({
     role: msg.role,
     content: msg.content,
@@ -160,86 +191,177 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     nextField: resume.conversationState.currentField,
   }));
 
-  // Process message with agent (extracts data, updates, generates next question)
-  const result = await agent.processMessage(
-    message,
-    cleanedData,
-    conversationHistory,
-    resume.conversationState // ✅ Pass state for Add More logic
-  );
+  try {
+    // Process message with agent
+    const result = await agent.processMessage(
+      message,
+      cleanedData,
+      conversationHistory,
+      resume.conversationState
+    );
 
-  // Merge the updated data back (preserving structure)
-  // The agent returns cleaned data, so we need to merge it properly
-  Object.keys(result.updatedData).forEach(key => {
-    if (key === 'personal' || key === 'skills') {
-      resume.data[key] = { ...resume.data[key], ...result.updatedData[key] };
-    } else {
-      // For arrays and other fields, just update
-      // result.updatedData is the new authoritative state derived from currentData
-      resume.data[key] = result.updatedData[key];
-    }
-  });
-
-  // Save AI response with context metadata
-  await resume.addMessage("assistant", result.nextQuestion, result.nextSection, result.nextField);
-
-  // Update conversation state
-  resume.conversationState.currentSection = result.nextSection;
-  resume.conversationState.currentField = result.nextField;
-  resume.conversationState.isComplete = result.isComplete;
-  resume.conversationState.pendingArrayAddition = result.pendingArrayAddition; // ✅ Persist flag
-
-  // Mark conversation complete if done
-  if (result.isComplete) {
-    resume.conversationState.isComplete = true;
-  }
-
-  await resume.save();
-
-  // Auto-recompile PDF if significant data was added and template exists
-  let pdfRecompiled = false;
-
-  // Eager Compiler Fix: Only recompile if section finished or conversation complete
-  const isSectionFinished = previousSection !== result.nextSection;
-  const isConversationFinished = result.isComplete || resume.conversationState.isComplete;
-
-  if (result.extractedFields.length > 0 && resume.templateId && (isSectionFinished || isConversationFinished)) {
-    try {
-      const template = await Template.findById(resume.templateId);
-      if (template) {
-        const latexString = generateLatex(template.latexTemplate, resume.data);
-        const pdfBuffer = await compilePDF(latexString, resumeId);
-        savePDF(pdfBuffer, resumeId);
-        resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
-        resume.generatedLatex = latexString;
-        await resume.save();
-        pdfRecompiled = true;
+    // Merge updated data back into resume
+    // We need to be careful here to preserve the Mongoose document structure
+    Object.keys(result.updatedData).forEach(key => {
+      if (key === "personal" || key === "skills") {
+        resume.data[key] = {
+          ...(resume.data[key] || {}),
+          ...result.updatedData[key]
+        };
+      } else {
+        resume.data[key] = result.updatedData[key];
       }
-    } catch (error) {
-      console.error("Auto-recompile failed:", error);
-      // Don't fail the chat if PDF compilation fails
+    });
+
+    // Mark data as modified (important for Mongoose)
+    resume.markModified('data');
+
+    // Save AI response
+    await resume.addMessage("assistant", result.nextQuestion);
+
+    // Update conversation state
+    resume.conversationState = {
+      currentSection: result.nextSection,
+      currentField: result.nextField,
+      currentArrayIndex: result.arrayIndex || 0,
+      pendingArrayAddition: result.pendingArrayAddition || false,
+      isComplete: result.isComplete || false
+    };
+
+    await resume.save();
+
+    // Auto-recompile PDF if section completed or conversation finished
+    let pdfRecompiled = false;
+    const sectionChanged = previousSection !== result.nextSection;
+    const conversationComplete = result.isComplete;
+
+    if ((sectionChanged || conversationComplete) && resume.templateId) {
+      try {
+        const template = await Template.findById(resume.templateId);
+        if (template) {
+          const latexString = generateLatex(template.latexTemplate, resume.data);
+          const pdfBuffer = await compilePDF(latexString, resumeId);
+          savePDF(pdfBuffer, resumeId);
+
+          resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
+          resume.generatedLatex = latexString;
+          await resume.save();
+          pdfRecompiled = true;
+        }
+      } catch (pdfError) {
+        console.error("⚠️  PDF auto-recompile failed:", pdfError);
+        // Don't fail the request if PDF compilation fails
+      }
     }
+
+    // Prepare response data
+    const responseData = cleanResumeData(toPlainObject(resume.data));
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        aiMessage: result.nextQuestion,
+        conversationState: resume.conversationState,
+        resumeData: responseData,
+        extractedFields: result.extractedFields,
+        isComplete: result.isComplete,
+        pdfRecompiled,
+        chatHistory: resume.chatHistory,
+      }, "Message processed successfully")
+    );
+  } catch (error) {
+    console.error("❌ Failed to process message:", error);
+    throw new ApiError(500, "Failed to process message. Please try again.");
   }
-
-  const cleanedResponseData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
-
-  res.status(200).json(
-    new ApiResponse(200, {
-      aiMessage: result.nextQuestion,
-      conversationState: resume.conversationState,
-      resumeData: cleanedResponseData,
-      extractedFields: result.extractedFields,
-      isComplete: result.isComplete,
-      wasUpdate: result.wasUpdate,
-      pdfRecompiled,
-      chatHistory: resume.chatHistory,
-    })
-  );
 });
 
 /**
- * Allow user to request specific updates
- * Example: "Update my email to new@email.com"
+ * Skip current field
+ */
+export const skipCurrentField = asyncHandler(async (req, res) => {
+  const { resumeId } = req.body;
+  const userId = req.user._id;
+
+  if (!resumeId) {
+    throw new ApiError(400, "resumeId is required");
+  }
+
+  const resume = await Resume.findOne({ _id: resumeId, userId });
+
+  if (!resume) {
+    throw new ApiError(404, "Resume not found or unauthorized");
+  }
+
+  // Save skip message
+  await resume.addMessage("user", "skip");
+
+  const agent = createAgent(process.env.GROQ_API_KEY);
+  const plainData = toPlainObject(resume.data);
+
+  // Mark current field as skipped
+  const { currentSection, currentField, currentArrayIndex } = resume.conversationState;
+
+  if (currentSection && currentField) {
+    if (["education", "experience", "projects"].includes(currentSection)) {
+      if (!plainData[currentSection]) plainData[currentSection] = [];
+      while (plainData[currentSection].length <= currentArrayIndex) {
+        plainData[currentSection].push({});
+      }
+      plainData[currentSection][currentArrayIndex][currentField] = "__SKIPPED__";
+    } else if (currentSection === "personal") {
+      if (!plainData.personal) plainData.personal = {};
+      plainData.personal[currentField] = "__SKIPPED__";
+    } else if (currentSection === "skills") {
+      if (!plainData.skills) plainData.skills = {};
+      plainData.skills[currentField] = "__SKIPPED__";
+    }
+  }
+
+  // Update resume data
+  resume.data = plainData;
+  resume.markModified('data');
+
+  try {
+    // Generate next question
+    const result = await agent.generateNextQuestion(
+      plainData,
+      resume.chatHistory,
+      true,
+      resume.conversationState
+    );
+
+    // Save AI response
+    await resume.addMessage("assistant", `No problem! Let's move on. ${result.message}`);
+
+    // Update conversation state
+    resume.conversationState = {
+      currentSection: result.nextSection,
+      currentField: result.nextField,
+      currentArrayIndex: result.arrayIndex || 0,
+      pendingArrayAddition: result.pendingArrayAddition || false,
+      isComplete: result.isComplete || false
+    };
+
+    await resume.save();
+
+    const responseData = cleanResumeData(toPlainObject(resume.data));
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        aiMessage: `No problem! Let's move on. ${result.message}`,
+        conversationState: resume.conversationState,
+        resumeData: responseData,
+        wasSkipped: true,
+        isComplete: result.isComplete,
+      }, "Field skipped successfully")
+    );
+  } catch (error) {
+    console.error("❌ Failed to skip field:", error);
+    throw new ApiError(500, "Failed to skip field. Please try again.");
+  }
+});
+
+/**
+ * Update specific resume data
  */
 export const updateResumeData = asyncHandler(async (req, res) => {
   const { resumeId, updateRequest } = req.body;
@@ -255,70 +377,64 @@ export const updateResumeData = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Resume not found or unauthorized");
   }
 
-  // Initialize agent
   const agent = createAgent(process.env.GROQ_API_KEY);
+  const plainData = toPlainObject(resume.data);
+  const cleanedData = cleanResumeData(plainData);
 
-  // Clean mock data before processing
-  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+  try {
+    const result = await agent.updateSpecificData(updateRequest, cleanedData);
 
-  // Process update request
-  const result = await agent.processMessage(
-    updateRequest,
-    cleanedData,
-    resume.chatHistory.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }))
-  );
-
-  // Update resume data
-  Object.keys(result.updatedData).forEach(key => {
-    if (key === 'personal' || key === 'skills') {
-      resume.data[key] = { ...resume.data[key], ...result.updatedData[key] };
-    } else if (Array.isArray(result.updatedData[key])) {
+    // Merge updates
+    Object.keys(result.updatedData).forEach(key => {
       resume.data[key] = result.updatedData[key];
-    } else {
-      resume.data[key] = result.updatedData[key];
-    }
-  });
+    });
 
-  await resume.addMessage("user", updateRequest);
-  await resume.addMessage("assistant", `✅ Updated successfully! ${result.message}`, result.nextSection, result.nextField);
+    resume.markModified('data');
 
-  await resume.save();
+    await resume.addMessage("user", updateRequest);
+    await resume.addMessage("assistant", `✅ ${result.message}`);
 
-  // Auto-recompile PDF
-  let pdfRecompiled = false;
-  if (resume.templateId) {
-    try {
-      const template = await Template.findById(resume.templateId);
-      if (template) {
-        const latexString = generateLatex(template.latexTemplate, resume.data);
-        const pdfBuffer = await compilePDF(latexString, resumeId);
-        savePDF(pdfBuffer, resumeId);
-        resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
-        resume.generatedLatex = latexString;
-        await resume.save();
-        pdfRecompiled = true;
+    await resume.save();
+
+    // Auto-recompile PDF
+    let pdfRecompiled = false;
+    if (resume.templateId && result.extractedFields.length > 0) {
+      try {
+        const template = await Template.findById(resume.templateId);
+        if (template) {
+          const latexString = generateLatex(template.latexTemplate, resume.data);
+          const pdfBuffer = await compilePDF(latexString, resumeId);
+          savePDF(pdfBuffer, resumeId);
+
+          resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
+          resume.generatedLatex = latexString;
+          await resume.save();
+          pdfRecompiled = true;
+        }
+      } catch (pdfError) {
+        console.error("⚠️  PDF recompile failed:", pdfError);
       }
-    } catch (error) {
-      console.error("Auto-recompile failed:", error);
     }
+
+    const responseData = cleanResumeData(toPlainObject(resume.data));
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        message: result.message,
+        resumeData: responseData,
+        extractedFields: result.extractedFields,
+        pdfRecompiled,
+      }, "Data updated successfully")
+    );
+  } catch (error) {
+    console.error("❌ Failed to update data:", error);
+    throw new ApiError(500, "Failed to update data. Please try again.");
   }
-
-  const cleanedResponseData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
-
-  res.status(200).json(
-    new ApiResponse(200, {
-      message: "Data updated successfully",
-      resumeData: cleanedResponseData,
-      extractedFields: result.extractedFields,
-      pdfRecompiled,
-    })
-  );
 });
 
-
+/**
+ * Get conversation status and analytics
+ */
 export const getConversationStatus = asyncHandler(async (req, res) => {
   const { resumeId } = req.params;
   const userId = req.user._id;
@@ -330,37 +446,58 @@ export const getConversationStatus = asyncHandler(async (req, res) => {
   }
 
   const agent = createAgent(process.env.GROQ_API_KEY);
+  const plainData = toPlainObject(resume.data);
+  const cleanedData = cleanResumeData(plainData);
 
-  // Clean mock data before analysis
-  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+  try {
+    const missingFields = agent.analyzeMissingFields(cleanedData, resume.conversationState);
 
-  const missingFields = agent.analyzeMissingFields(cleanedData);
+    // Calculate completion percentage
+    const sections = ["personal", "education", "experience", "projects", "skills"];
+    let completedSections = 0;
 
-  // Calculate completion based on real data only
-  const totalFields = 50; // Approximate total important fields
-  const missingCount = missingFields.filter(f => f.required).length;
-  const completionPercentage = Math.max(0, Math.round(
-    ((totalFields - missingCount) / totalFields) * 100
-  ));
+    // Personal
+    if (cleanedData.personal?.name && cleanedData.personal?.email && cleanedData.personal?.phone) {
+      completedSections++;
+    }
 
-  res.status(200).json(
-    new ApiResponse(200, {
-      isComplete: resume.conversationState.isComplete,
-      currentSection: resume.conversationState.currentSection,
-      currentField: resume.conversationState.currentField,
-      missingFields: missingFields.map(f => ({
-        section: f.section,
-        field: f.field,
-        description: f.description,
-        required: f.required,
-      })),
-      completionPercentage,
-      resumeData: cleanedData,
-    })
-  );
+    // Arrays
+    if (cleanedData.education?.length > 0) completedSections++;
+    if (cleanedData.experience?.length > 0) completedSections++;
+    if (cleanedData.projects?.length > 0) completedSections++;
+
+    // Skills
+    if (cleanedData.skills?.languages?.length > 0 || cleanedData.skills?.technologies?.length > 0) {
+      completedSections++;
+    }
+
+    const completionPercentage = Math.round((completedSections / sections.length) * 100);
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        isComplete: resume.conversationState.isComplete,
+        currentSection: resume.conversationState.currentSection,
+        currentField: resume.conversationState.currentField,
+        completionPercentage,
+        missingFields: missingFields.map(f => ({
+          section: f.section,
+          field: f.field,
+          description: f.description,
+          priority: f.priority
+        })),
+        resumeData: cleanedData,
+        totalMessages: resume.chatHistory.length,
+      }, "Conversation status retrieved")
+    );
+  } catch (error) {
+    console.error("❌ Failed to get status:", error);
+    throw new ApiError(500, "Failed to get conversation status");
+  }
 });
 
-
+/**
+ * Reset conversation
+ */
 export const resetAgenticConversation = asyncHandler(async (req, res) => {
   const { resumeId } = req.params;
   const userId = req.user._id;
@@ -371,7 +508,7 @@ export const resetAgenticConversation = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Resume not found or unauthorized");
   }
 
-  // Reset data (keep template)
+  // Reset data
   resume.data = {
     personal: {},
     education: [],
@@ -392,6 +529,7 @@ export const resetAgenticConversation = asyncHandler(async (req, res) => {
     isComplete: false,
   };
 
+  resume.markModified('data');
   await resume.save();
 
   res.status(200).json(
@@ -399,92 +537,7 @@ export const resetAgenticConversation = asyncHandler(async (req, res) => {
   );
 });
 
-
-export const skipCurrentField = asyncHandler(async (req, res) => {
-  const { resumeId } = req.body;
-  const userId = req.user._id;
-
-  if (!resumeId) {
-    throw new ApiError(400, "resumeId is required");
-  }
-
-  const resume = await Resume.findOne({ _id: resumeId, userId });
-
-  if (!resume) {
-    throw new ApiError(404, "Resume not found or unauthorized");
-  }
-
-  // Save skip message
-  await resume.addMessage("user", "skip");
-
-  // Initialize agent to get next question
-  const agent = createAgent(process.env.GROQ_API_KEY);
-
-  // Clean mock data
-  // PASS keepSkips = true so that __SKIPPED__ values are preserved for the Agent Logic
-  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data, new WeakSet(), true);
-
-  // Identify what is being skipped
-  // We need to know the CURRENT field being asked. 
-  // conversationState.currentField usually holds this.
-  const skippedSection = resume.conversationState.currentSection;
-  const skippedField = resume.conversationState.currentField;
-  const skippedArrayIndex = resume.conversationState.currentArrayIndex || 0; // Assuming we track this or default 0
-
-  if (skippedSection && skippedField) {
-    if (["education", "experience", "projects"].includes(skippedSection)) {
-      // Ensure array exists
-      resume.data[skippedSection] = resume.data[skippedSection] || [];
-      while (resume.data[skippedSection].length <= skippedArrayIndex) {
-        resume.data[skippedSection].push({});
-      }
-      // Mark as skipped
-      resume.data[skippedSection][skippedArrayIndex][skippedField] = "__SKIPPED__";
-    } else if (skippedSection === "personal") {
-      resume.data.personal = resume.data.personal || {};
-      resume.data.personal[skippedField] = "__SKIPPED__";
-    } else if (skippedSection === "skills") {
-      resume.data.skills = resume.data.skills || {};
-      resume.data.skills[skippedField] = ["__SKIPPED__"]; // Array type
-    }
-
-    // Update cleanedData for immediate use
-    // (Since we just modified resume.data, let's refresh cleanedData or patch it)
-    if (["education", "experience", "projects"].includes(skippedSection)) {
-      if (!cleanedData[skippedSection]) cleanedData[skippedSection] = [];
-      if (!cleanedData[skippedSection][skippedArrayIndex]) cleanedData[skippedSection][skippedArrayIndex] = {};
-      cleanedData[skippedSection][skippedArrayIndex][skippedField] = "__SKIPPED__";
-    } else if (skippedSection === "personal") {
-      if (!cleanedData.personal) cleanedData.personal = {};
-      cleanedData.personal[skippedField] = "__SKIPPED__";
-    }
-  }
-
-  // Get next question with updated data (so it sees the skip)
-  // Also pass currentSection to prioritize staying in context
-  const result = await agent.generateNextQuestion(cleanedData, resume.chatHistory, false, resume.conversationState.currentSection);
-
-  // Update conversation state to next field
-  resume.conversationState.currentSection = result.nextSection;
-  resume.conversationState.currentField = result.nextField;
-  resume.conversationState.isComplete = result.isComplete;
-  resume.conversationState.pendingArrayAddition = result.pendingArrayAddition;
-
-  await resume.addMessage("assistant", result.message, result.nextSection, result.nextField);
-
-  // CRITICAL: Mark data as modified to ensure skips are saved
-  resume.markModified('data');
-  await resume.save();
-
-  // Generate clean data for frontend (without skips)
-  const responseData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data, new WeakSet(), false);
-
-  res.status(200).json(
-    new ApiResponse(200, {
-      aiMessage: result.message,
-      conversationState: resume.conversationState,
-      resumeData: responseData,
-    })
-  );
-});
+// ====================================================================
+// EXPORT
+// ====================================================================
 
