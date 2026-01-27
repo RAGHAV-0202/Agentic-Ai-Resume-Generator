@@ -10,6 +10,7 @@ const MODELS = [
   "llama-3.1-8b-instant"
 ];
 
+
 const getRandomModel = () => MODELS[Math.floor(Math.random() * MODELS.length)];
 
 class ResumeAgent {
@@ -20,10 +21,11 @@ class ResumeAgent {
   // --- 1. CALL GROQ API ---
   async callGroq(messages, tools = null, toolChoice = "auto") {
     const currentModel = getRandomModel();
+
     const payload = {
       model: currentModel,
       messages,
-      temperature: 0.5, // Lower temperature for more deterministic extraction
+      temperature: 0.5,
     };
 
     if (tools) {
@@ -42,13 +44,15 @@ class ResumeAgent {
       });
 
       if (!response.ok) {
-        throw new Error(`Groq API error: ${response.status}`);
+        const errText = await response.text();
+        console.error(`Groq API Error (${response.status}):`, errText);
+        throw new Error(`Groq API error: ${response.status} - ${errText}`);
       }
 
       const data = await response.json();
       return data.choices[0].message;
     } catch (error) {
-      console.error("Groq API error:", error);
+      console.error("Groq Call Failed:", error);
       throw error;
     }
   }
@@ -190,6 +194,8 @@ RULES:
   // --- 5. GENERATE NEXT QUESTION ---
   async generateNextQuestion(collectedData, conversationHistory = []) {
     const missingFields = this.analyzeMissingFields(collectedData);
+
+    // SAFETY CHECK: Ensure history is an array
     const safeHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
     const lastMsg = safeHistory.length > 0 ? safeHistory[safeHistory.length - 1] : null;
 
@@ -236,6 +242,8 @@ RULES:
   // --- 6. PROCESS MESSAGE (Logic Fix) ---
   async processMessage(userMessage, currentData, conversationHistory = []) {
     const updatedData = JSON.parse(JSON.stringify(currentData));
+
+    // SAFETY CHECK: Ensure history is an array
     const safeHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
     const lastState = safeHistory.length > 0 ? safeHistory[safeHistory.length - 1] : {};
 
@@ -249,7 +257,7 @@ RULES:
         updatedData[section] = updatedData[section] || [];
         updatedData[section].push({}); // Add empty object to increase length
 
-        const nextQ = await this.generateNextQuestion(updatedData, conversationHistory);
+        const nextQ = await this.generateNextQuestion(updatedData, safeHistory);
         return {
           updatedData,
           nextQuestion: nextQ.message,
@@ -264,12 +272,10 @@ RULES:
     // Determine Index for Extraction
     const currentSection = lastState.nextSection || "personal";
     let nextIndex = 0;
-
     if (["education", "experience", "projects"].includes(currentSection)) {
       // If we just added an empty object (from the Yes logic above in previous turn), use that index
-      // Otherwise, use the last index to update it (or 0 if empty)
-      const arr = updatedData[currentSection];
-      nextIndex = arr && arr.length > 0 ? arr.length - 1 : 0;
+      nextIndex = (updatedData[currentSection]?.length || 1) - 1;
+      if (nextIndex < 0) nextIndex = 0;
     }
 
     // Extract
@@ -313,7 +319,7 @@ RULES:
       }
     }
 
-    const nextQ = await this.generateNextQuestion(updatedData, conversationHistory);
+    const nextQ = await this.generateNextQuestion(updatedData, safeHistory);
 
     return {
       updatedData,
