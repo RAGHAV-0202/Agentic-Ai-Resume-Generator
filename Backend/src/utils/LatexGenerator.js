@@ -59,9 +59,9 @@ const handleConditionals = (latex, data) => {
 
   // LinkedIn conditional
 
-// In handleConditionals function, add:
+  // In handleConditionals function, add:
 
-// Email conditional
+  // Email conditional
   if (data.personal?.email && data.personal.email.trim() !== "") {
     result = result.replace(/{{#IF_EMAIL}}/g, "");
     result = result.replace(/{{\/IF_EMAIL}}/g, "");
@@ -201,12 +201,12 @@ const populateAchievements = (latex, achievementsArray) => {
     return latex.replace(blockRegex, "");
   }
 
-  const blockTemplate = match[1]; 
+  const blockTemplate = match[1];
   let achievementsLatex = "";
 
   achievementsArray.forEach((item) => {
     // Replace {{{.}}} with the actual text
-    // Note: We use 3 curly braces {{{.}}} in the template for the item
+    // The user's template uses {{{.}}} which corresponds to the current item in the array
     let entry = blockTemplate.replace(/{{{\.}}}/g, escapeLatex(item));
     achievementsLatex += entry;
   });
