@@ -7,8 +7,6 @@ import Template from "../models/Template.model.js";
 import { generateLatex } from "../utils/LatexGenerator.js";
 import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
 
-// src/controllers/resume.controller.js
-
 
 export const createResume = asyncHandler(async (req, res) => {
   const { templateId } = req.body;
@@ -19,7 +17,7 @@ export const createResume = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  // Create new resume session with EMPTY data structure
+  // Create new resume session with EMPTY data structure (no mock data)
   const newResume = await Resume.create({
     userId,
     templateId: templateId || null,
@@ -43,8 +41,25 @@ export const createResume = asyncHandler(async (req, res) => {
     },
   });
 
-  // Note: We do NOT auto-generate PDF on creation anymore
-  // PDF will be generated after user provides real data
+  // ✅ GENERATE INITIAL BLANK/TEMPLATE PDF (without mock data)
+  // This provides a preview of the template structure
+  if (templateId) {
+    try {
+      const template = await Template.findById(templateId);
+      if (template) {
+        // Generate PDF with empty data (shows template structure)
+        const latexString = generateLatex(template.latexTemplate, newResume.data);
+        const pdfBuffer = await compilePDF(latexString, newResume._id);
+        savePDF(pdfBuffer, newResume._id);
+        newResume.pdfUrl = `/pdfs/${newResume._id}.pdf`;
+        newResume.generatedLatex = latexString;
+        await newResume.save();
+      }
+    } catch (error) {
+      console.error("Initial PDF generation failed:", error);
+      // Don't throw error - resume is still created, just without PDF
+    }
+  }
 
   user.totalResumesCreated += 1;
   await user.save();
@@ -135,6 +150,19 @@ export const setResumeTemplate = asyncHandler(async (req, res) => {
   }
 
   resume.templateId = templateId;
+  
+  // Auto-generate PDF with new template
+  try {
+    const latexString = generateLatex(template.latexTemplate, resume.data);
+    const pdfBuffer = await compilePDF(latexString, resume._id);
+    savePDF(pdfBuffer, resume._id);
+    resume.pdfUrl = `/pdfs/${resume._id}.pdf`;
+    resume.generatedLatex = latexString;
+  } catch (error) {
+    console.error("PDF generation with new template failed:", error);
+    // Don't throw - template is still set
+  }
+  
   await resume.save();
 
   res
@@ -163,16 +191,11 @@ export const generateResumePDF = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Please select a template first");
   }
 
-  // Check if resume has minimal data
-  if (!resume.data.personal?.name || !resume.data.personal?.email) {
-    throw new ApiError(400, "Please provide at least name and email before generating PDF");
-  }
-
   try {
     const template = resume.templateId;
     const latexString = generateLatex(template.latexTemplate, resume.data);
     const pdfBuffer = await compilePDF(latexString, resume._id);
-    const pdfPath = savePDF(pdfBuffer, resume._id);
+    savePDF(pdfBuffer, resume._id);
     
     resume.pdfUrl = `/pdfs/${resume._id}.pdf`;
     resume.generatedLatex = latexString;
@@ -190,9 +213,7 @@ export const generateResumePDF = asyncHandler(async (req, res) => {
   }
 });
 
-/**
- * Update resume name
- */
+
 export const updateResumeName = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { resumeName } = req.body;
@@ -216,9 +237,7 @@ export const updateResumeName = asyncHandler(async (req, res) => {
   );
 });
 
-/**
- * Get resume completion status
- */
+
 export const getResumeStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user._id;

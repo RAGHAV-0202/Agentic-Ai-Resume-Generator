@@ -171,7 +171,6 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     }
   }
 
-  // Clean mock data before sending response
   const cleanedResponseData = cleanMockData(resume.data);
 
   res.status(200).json(
@@ -257,7 +256,6 @@ export const updateResumeData = asyncHandler(async (req, res) => {
     }
   }
 
-  // Clean mock data before sending response
   const cleanedResponseData = cleanMockData(resume.data);
 
   res.status(200).json(
@@ -270,9 +268,7 @@ export const updateResumeData = asyncHandler(async (req, res) => {
   );
 });
 
-/**
- * Get conversation summary and missing fields
- */
+
 export const getConversationStatus = asyncHandler(async (req, res) => {
   const { resumeId } = req.params;
   const userId = req.user._id;
@@ -314,9 +310,7 @@ export const getConversationStatus = asyncHandler(async (req, res) => {
   );
 });
 
-/**
- * Reset conversation and start fresh
- */
+
 export const resetAgenticConversation = asyncHandler(async (req, res) => {
   const { resumeId } = req.params;
   const userId = req.user._id;
@@ -355,9 +349,7 @@ export const resetAgenticConversation = asyncHandler(async (req, res) => {
   );
 });
 
-/**
- * Skip current field and move to next
- */
+
 export const skipCurrentField = asyncHandler(async (req, res) => {
   const { resumeId } = req.body;
   const userId = req.user._id;
