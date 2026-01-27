@@ -160,7 +160,8 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   const result = await agent.processMessage(
     message,
     cleanedData,
-    conversationHistory
+    conversationHistory,
+    resume.conversationState // ✅ Pass state for Add More logic
   );
 
   // Merge the updated data back (preserving structure)

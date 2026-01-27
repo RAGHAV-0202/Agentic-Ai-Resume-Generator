@@ -197,10 +197,39 @@ Call the extract_resume_data function with the extracted information.`;
   /**
    * Generate next question based on what's missing
    */
-  async generateNextQuestion(collectedData, conversationHistory) {
+  async generateNextQuestion(collectedData, conversationHistory, forceSkip = false, currentSection = "personal") {
     const missingFields = this.analyzeMissingFields(collectedData);
 
-    if (missingFields.length === 0) {
+    let currentMissingFields = [...missingFields];
+
+    if (forceSkip && currentMissingFields.length > 0) {
+      // Check if we are skipping an array field that is basically part of the same section
+      // If we skip "gpa", we just go to "coursework".
+      // If we skip the LAST field of a section, we go to NEXT section.
+      // This is handled automatically by the order of missingFields.
+
+      // However, loop prevention:
+      // logic in analyzeMissingFields might stubbornly return the same field if not marked skipped.
+      // We are relying on the fact that if we force skip, we pick index 1.
+
+      // What if index 1 is ALSO effectively the same (e.g. part of same blocked entry)?
+      // It should be fine.
+
+      // Simple heuristic: If we force skip, we discard the first suggestion.
+      if (currentMissingFields.length > 1) {
+        currentMissingFields.shift();
+      } else {
+        // If we force skip the LAST field of ALL, we are done.
+        return {
+          message: "🎉 Great! I have all the information I need. Your resume is ready to be generated!",
+          isComplete: true,
+          nextSection: "complete",
+          nextField: "complete",
+        };
+      }
+    }
+
+    if (currentMissingFields.length === 0) {
       return {
         message: "🎉 Great! I have all the information I need. Your resume is ready to be generated!",
         isComplete: true,
@@ -209,7 +238,49 @@ Call the extract_resume_data function with the extracted information.`;
       };
     }
 
-    const nextField = missingFields[0];
+    let nextField = currentMissingFields[0];
+
+    // ✅ ADD MORE DETECTION (User Request: "it should ask first add more for adding more than one education , experience etc")
+    // Logic: If we are switching SECTIONS, checks if the previous section (currentSection) was an Array section.
+    // If so, and we are not explicitly forcing skip/moving on, we should interject.
+
+    const arraySections = ["education", "experience", "projects"];
+
+    // If we detect we are done with the current section (nextField is different), 
+    // AND currentSection is an array section
+    // AND we haven't asked "add more" yet (controlled by caller state, but we can't see it here easily without passing it).
+    // Actually, expecting the caller to handle "Yes/No" logic means we only trigger this question ONCE.
+    // If we return a "pendingArrayAddition" flag, the caller will ensure next time we come here, we've moved past it?
+    // No, if user said "No", caller sets pending=false. We come back here.
+    // We see NextField is still different. We see CurrentSection is Array.
+    // We would trigger it AGAIN. Infinite loop to "Add more?".
+
+    // Fix: We need to know if we are "allowed" to leave the section.
+    // If user said "No" (skip add more), the caller should probably have updated `currentSection` to the `nextSection`.
+    // OR call this, get this result, and ignore it if we just asked?
+
+    // Let's assume the standard behavior is to ask.
+    // The controller manages the "I already asked" state by advancing the section in the DB *if* the user decliners.
+
+    if (currentSection && nextField.section !== currentSection && arraySections.includes(currentSection)) {
+      // We are about to leave an array section.
+      // Assume we need to ask "Add more?".
+
+      // NOTE: The Caller (Controller) is responsible for:
+      // 1. If user says "No" to add more -> Update `resume.conversationState.currentSection` to `nextField.section` BEFORE calling this?
+      //    OR call this, get this result, and ignore it if we just asked?
+
+      // Let's assume the standard behavior is to ask.
+      // The controller manages the "I already asked" state by advancing the section in the DB *if* the user decliners.
+
+      return {
+        message: `Would you like to add another entry for ${currentSection}? (Yes/No)`,
+        isComplete: false,
+        nextSection: currentSection, // Stay in current section
+        nextField: "add_more",
+        isPendingArrayAddition: true
+      };
+    }
 
     const prompt = `You are "AI Resume Agent", a friendly and professional career coach helping users build their resume.
 
@@ -250,7 +321,9 @@ Generate a short, punchy question for the ${nextField.field} field.`;
       isComplete: false,
       nextSection: nextField.section,
       nextField: nextField.field,
-      isArray: nextField.isArray,
+      isArray: nextField.isArray, // Note: new logic removed isArray from defs in analyzeMissingFields, but we might want to preserve it or re-derive it?
+      // analyzeMissingFields returns the full def, so if we kept it in defs (we did), it's here.
+      // Wait, my replacement for analyzeMissingFields kept 'isArray' in definitions. YES.
       arrayIndex: nextField.arrayIndex,
     };
   }
@@ -276,9 +349,6 @@ Generate a short, punchy question for the ${nextField.field} field.`;
     const isMock = (val) => {
       if (!val) return false;
       if (typeof val === 'string') return mockValuesSet.has(val);
-      // If it's an array (like skills), check if *all* items are mock items (maybe just 1 is enough to be suspicious?)
-      // Let's say if it's an exact match of string representation it's definitely mock, but that's hard.
-      // Safer: if the value is a string, check set.
       return false;
     };
 
@@ -293,27 +363,27 @@ Generate a short, punchy question for the ${nextField.field} field.`;
       { section: "personal", field: "website", description: "Personal website/portfolio", required: false },
 
       // Education (Required - at least one)
-      { section: "education", field: "institution", description: "University/School name", required: true, isArray: true, arrayIndex: 0 },
-      { section: "education", field: "degree", description: "Degree and major", required: true, isArray: true, arrayIndex: 0 },
-      { section: "education", field: "startDate", description: "Start date", required: true, isArray: true, arrayIndex: 0 },
-      { section: "education", field: "endDate", description: "End date (or expected)", required: true, isArray: true, arrayIndex: 0 },
-      { section: "education", field: "gpa", description: "GPA (optional)", required: false, isArray: true, arrayIndex: 0 },
-      { section: "education", field: "coursework", description: "Relevant coursework", required: false, isArray: true, arrayIndex: 0 },
+      { section: "education", field: "institution", description: "University/School name", required: true, isArray: true },
+      { section: "education", field: "degree", description: "Degree and major", required: true, isArray: true },
+      { section: "education", field: "startDate", description: "Start date", required: true, isArray: true },
+      { section: "education", field: "endDate", description: "End date (or expected)", required: true, isArray: true },
+      { section: "education", field: "gpa", description: "GPA (optional)", required: false, isArray: true },
+      { section: "education", field: "coursework", description: "Relevant coursework", required: false, isArray: true },
 
       // Experience (Optional but recommended)
-      { section: "experience", field: "company", description: "Company name", required: false, isArray: true, arrayIndex: 0 },
-      { section: "experience", field: "position", description: "Job title/position", required: false, isArray: true, arrayIndex: 0 },
-      { section: "experience", field: "location", description: "Job location", required: false, isArray: true, arrayIndex: 0 },
-      { section: "experience", field: "startDate", description: "Start date", required: false, isArray: true, arrayIndex: 0 },
-      { section: "experience", field: "endDate", description: "End date (or Present)", required: false, isArray: true, arrayIndex: 0 },
-      { section: "experience", field: "highlights", description: "Key responsibilities and achievements", required: false, isArray: true, arrayIndex: 0 },
+      { section: "experience", field: "company", description: "Company name", required: false, isArray: true },
+      { section: "experience", field: "position", description: "Job title/position", required: false, isArray: true },
+      { section: "experience", field: "location", description: "Job location", required: false, isArray: true },
+      { section: "experience", field: "startDate", description: "Start date", required: false, isArray: true },
+      { section: "experience", field: "endDate", description: "End date (or Present)", required: false, isArray: true },
+      { section: "experience", field: "highlights", description: "Key responsibilities and achievements", required: false, isArray: true },
 
       // Projects (Recommended)
-      { section: "projects", field: "name", description: "Project name", required: false, isArray: true, arrayIndex: 0 },
-      { section: "projects", field: "link", description: "Project link (GitHub/Demo)", required: false, isArray: true, arrayIndex: 0 },
-      { section: "projects", field: "date", description: "Project date", required: false, isArray: true, arrayIndex: 0 },
-      { section: "projects", field: "highlights", description: "Project description", required: false, isArray: true, arrayIndex: 0 },
-      { section: "projects", field: "technologies", description: "Technologies used", required: false, isArray: true, arrayIndex: 0 },
+      { section: "projects", field: "name", description: "Project name", required: false, isArray: true },
+      { section: "projects", field: "link", description: "Project link (GitHub/Demo)", required: false, isArray: true },
+      { section: "projects", field: "date", description: "Project date", required: false, isArray: true },
+      { section: "projects", field: "highlights", description: "Project description", required: false, isArray: true },
+      { section: "projects", field: "technologies", description: "Technologies used", required: false, isArray: true },
 
       // Skills (Required)
       { section: "skills", field: "languages", description: "Programming languages", required: true },
@@ -325,43 +395,80 @@ Generate a short, punchy question for the ${nextField.field} field.`;
 
     const missingFields = [];
 
-    for (const fieldDef of fieldDefinitions) {
-      const { section, field, isArray, arrayIndex } = fieldDef;
-
-      let isMissing = false;
-
-
+    // Helper to check if a specific section field is missing
+    const checkField = (data, fieldDef) => {
+      const { section, field, isArray } = fieldDef;
 
       if (section === "personal") {
-        const val = collectedData.personal?.[field];
-        isMissing = !val || val === "undefined" || String(val).trim() === "" || isMock(val);
-      } else if (section === "skills") {
-        isMissing = !collectedData.skills?.[field] || collectedData.skills[field].length === 0;
-      } else if (section === "achievements") {
-        isMissing = !collectedData.achievements || collectedData.achievements.length === 0;
-      } else if (isArray) {
-        const sectionData = collectedData[section];
-        // console.log(`[Agent-Debug] Section ${section} data:`, JSON.stringify(sectionData));
-        if (!sectionData || sectionData.length === 0) {
-          isMissing = true;
-        } else {
-          const entry = sectionData[arrayIndex || 0];
-          const val = entry?.[field];
-          // console.log(`[Agent-Debug] Checking ${section}[${arrayIndex}].${field}. Value: '${val}'`);
+        const val = data.personal?.[field];
+        return !val || val === "undefined" || String(val).trim() === "" || isMock(val);
+      }
 
-          if (!entry || !val || val === "undefined" || (Array.isArray(val) && val.length === 0) || String(val).trim() === "" || isMock(val)) {
-            isMissing = true;
+      if (section === "skills") {
+        return !data.skills?.[field] || data.skills[field].length === 0;
+      }
+
+      if (section === "achievements") {
+        return !data.achievements || data.achievements.length === 0;
+      }
+
+      return false;
+    };
+
+    // Iterate through sections logically
+    // We group field defs by section to handle arrays correctly
+    const sections = ["personal", "education", "experience", "projects", "skills", "achievements"];
+
+    for (const section of sections) {
+      const sectionDefs = fieldDefinitions.filter(f => f.section === section);
+
+      if (["education", "experience", "projects"].includes(section)) {
+        const sectionData = collectedData[section] || [];
+
+        // If empty, we need at least one entry?
+        // If it's education, yes (marked as required fields).
+        // If it's experience, it's optional? But usually we want 1.
+        // Let's assume we always check index 0 if empty.
+
+        const count = Math.max(1, sectionData.length);
+
+        for (let i = 0; i < count; i++) {
+          const entry = sectionData[i] || {};
+
+          for (const fieldDef of sectionDefs) {
+            const val = entry[fieldDef.field];
+            const isMissing = !val || val === "undefined" || (Array.isArray(val) && val.length === 0) || String(val).trim() === "" || isMock(val);
+
+            // If missing and (required OR (optional but we are already asking about this entry))
+            // Simplification: asking all fields for the entry.
+
+            // Optimization: If the entry is completely empty (new), we only really trigger heavily on 'required' fields.
+            // But we want to guide them through.
+
+            if (isMissing) {
+              // Only add if we don't have this field already (though we are iterating fresh)
+              // We clone the def and add arrayIndex
+              missingFields.push({ ...fieldDef, arrayIndex: i });
+            }
+          }
+        }
+      } else {
+        // Simple sections
+        for (const fieldDef of sectionDefs) {
+          if (checkField(collectedData, fieldDef)) {
+            missingFields.push(fieldDef);
           }
         }
       }
-
-      // Only add required fields or first optional field per section
-      if (isMissing && (fieldDef.required || missingFields.filter(f => f.section === section).length === 0)) {
-
-        missingFields.push(fieldDef);
-      }
     }
 
+    // Sort logic or prioritize?
+    // The loop order (Personal -> Education -> ...) implies priority.
+    // We just return the first one found usually.
+
+    // FILTER: We only want to enable "Optional" fields if the "Required" fields of that same section/entry are filled?
+    // Or just return all missing. The caller picks [0].
+    // Since we iterate in order, [0] will be the first missing field of the first section.
 
     return missingFields;
   }
@@ -369,11 +476,76 @@ Generate a short, punchy question for the ${nextField.field} field.`;
   /**
    * Process user message and update database intelligently
    */
-  async processMessage(userMessage, currentData, conversationHistory) {
+  /**
+   * Process user message and update database intelligently
+   */
+  async processMessage(userMessage, currentData, conversationHistory, conversationState = {}) {
+    // Check for "Add More" Confirmation if pending
+    if (conversationState.pendingArrayAddition) {
+      // Simple heuristic for Yes/No
+      const lowerMsg = userMessage.toLowerCase().trim();
+      const yesPatterns = [/^yes/i, /^sure/i, /^ok/i, /^yep/i, /^yeah/i, /^add/i, /^one more/i];
+      const isYes = yesPatterns.some(p => p.test(lowerMsg));
+
+      const updatedData = JSON.parse(JSON.stringify(currentData));
+      const currentSection = conversationState.currentSection;
+
+      if (isYes) {
+        // Add empty item
+        updatedData[currentSection] = updatedData[currentSection] || [];
+        updatedData[currentSection].push({});
+
+        // Generate next question for this new item
+        const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, currentSection);
+
+        return {
+          updatedData,
+          extractedFields: [],
+          nextQuestion: nextQuestion.message,
+          isComplete: false,
+          nextSection: currentSection,
+          nextField: nextQuestion.nextField,
+          wasUpdate: false,
+          wasSkipped: false,
+          pendingArrayAddition: false // Reset flag
+        };
+      } else {
+        // No, move on
+        // We need to force move to next section
+        // generateNextQuestion with currentSection passed in checks for transition
+        // But since we are here, we know we want to transition.
+
+        // We rely on generateNextQuestion detecting the transition naturally.
+        // BUT, if we pass currentSection as "education", it triggers "Add more" loop.
+        // We need to pass the NEXT section.
+
+        // How do we know the next section? analyzeMissingFields knows.
+        const missing = this.analyzeMissingFields(updatedData);
+        const nextField = missing[0]; // Should be in next section since current is full
+        const nextSection = nextField ? nextField.section : "complete";
+
+        // Generate question for the NEXT section directly
+        const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, nextSection);
+
+        return {
+          updatedData,
+          extractedFields: [],
+          nextQuestion: nextQuestion.message,
+          isComplete: nextQuestion.isComplete,
+          nextSection: nextQuestion.nextSection,
+          nextField: nextQuestion.nextField,
+          wasUpdate: false,
+          wasSkipped: false,
+          pendingArrayAddition: false // Reset flag
+        };
+      }
+    }
+
     // Step 1: Extract all fields from message
     const extractionResult = await this.extractMultipleFields(
       userMessage,
       conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1].nextSection : "personal",
+      // If we provided conversationState, we could use that. currentSection is safer.
       currentData
     );
 
@@ -429,7 +601,8 @@ Generate a short, punchy question for the ${nextField.field} field.`;
     await Promise.all(optimizationPromises);
 
     // Step 3: Generate next question
-    const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory);
+    // Pass currentSection from state to allow transition detection
+    const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, conversationState.currentSection);
 
     return {
       updatedData,
@@ -440,6 +613,7 @@ Generate a short, punchy question for the ${nextField.field} field.`;
       nextField: nextQuestion.nextField,
       wasUpdate: extractionResult.update_request,
       wasSkipped: extractionResult.user_wants_to_skip,
+      pendingArrayAddition: nextQuestion.isPendingArrayAddition || false
     };
   }
 }
