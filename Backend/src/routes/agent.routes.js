@@ -7,6 +7,7 @@ import {
   updateResumeData,
   getConversationStatus,
   resetAgenticConversation,
+  skipCurrentField,
 } from "../controllers/agent.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -29,5 +30,8 @@ router.get("/status/:resumeId", getConversationStatus);
 
 
 router.post("/reset/:resumeId", resetAgenticConversation);
+
+
+router.post("/skip", skipCurrentField);
 
 export default router;

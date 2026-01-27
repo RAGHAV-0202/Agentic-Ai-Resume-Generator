@@ -37,10 +37,10 @@ export const startAgenticConversation = asyncHandler(async (req, res) => {
   // If conversation already started, return last AI message
   if (resume.chatHistory.length > 0) {
     const lastMessage = resume.chatHistory[resume.chatHistory.length - 1];
-    
+
     // Clean mock data before sending
-    const cleanedData = cleanMockData(resume.data);
-    
+    const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+
     return res.status(200).json(
       new ApiResponse(200, {
         aiMessage: lastMessage.content,
@@ -55,7 +55,7 @@ export const startAgenticConversation = asyncHandler(async (req, res) => {
   const agent = createAgent(process.env.GROQ_API_KEY);
 
   // Clean mock data before passing to agent
-  const cleanedData = cleanMockData(resume.data);
+  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
   // Generate first question
   const result = await agent.generateNextQuestion(cleanedData, []);
@@ -171,7 +171,7 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     }
   }
 
-  const cleanedResponseData = cleanMockData(resume.data);
+  const cleanedResponseData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
   res.status(200).json(
     new ApiResponse(200, {
@@ -231,7 +231,7 @@ export const updateResumeData = asyncHandler(async (req, res) => {
       resume.data[key] = result.updatedData[key];
     }
   });
-  
+
   await resume.addMessage("user", updateRequest);
   await resume.addMessage("assistant", `✅ Updated successfully! ${result.nextQuestion}`);
 
@@ -256,7 +256,7 @@ export const updateResumeData = asyncHandler(async (req, res) => {
     }
   }
 
-  const cleanedResponseData = cleanMockData(resume.data);
+  const cleanedResponseData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
   res.status(200).json(
     new ApiResponse(200, {
@@ -280,10 +280,10 @@ export const getConversationStatus = asyncHandler(async (req, res) => {
   }
 
   const agent = createAgent(process.env.GROQ_API_KEY);
-  
+
   // Clean mock data before analysis
-  const cleanedData = cleanMockData(resume.data);
-  
+  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+
   const missingFields = agent.analyzeMissingFields(cleanedData);
 
   // Calculate completion based on real data only
@@ -369,9 +369,9 @@ export const skipCurrentField = asyncHandler(async (req, res) => {
 
   // Initialize agent to get next question
   const agent = createAgent(process.env.GROQ_API_KEY);
-  
+
   // Clean mock data
-  const cleanedData = cleanMockData(resume.data);
+  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
   // Get next question without updating current field
   const result = await agent.generateNextQuestion(cleanedData, resume.chatHistory);

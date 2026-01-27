@@ -42,7 +42,7 @@ const isSkipRequest = (message) => {
     /move on/i,
     /go to next/i,
   ];
-  
+
   return skipPatterns.some(pattern => pattern.test(lowerMessage));
 };
 
@@ -50,7 +50,7 @@ const isSkipRequest = (message) => {
 const containsMockData = (value) => {
   if (!value || value === "") return true;
   if (typeof value === 'string') {
-    return MOCK_VALUES.some(mock => 
+    return MOCK_VALUES.some(mock =>
       value.toLowerCase().includes(mock.toLowerCase())
     );
   }
@@ -58,16 +58,21 @@ const containsMockData = (value) => {
 };
 
 // Recursively clean mock data from collected data
-const cleanMockData = (data) => {
+const cleanMockData = (data, seen = new WeakSet()) => {
   if (data === null || data === undefined) return null;
-  
+
   if (typeof data === 'string') {
     return containsMockData(data) ? "" : data;
   }
-  
+
+  if (typeof data === 'object') {
+    if (seen.has(data)) return null;
+    seen.add(data);
+  }
+
   if (Array.isArray(data)) {
     return data
-      .map(cleanMockData)
+      .map(item => cleanMockData(item, seen))
       .filter(item => {
         if (typeof item === 'string') return item !== "";
         if (typeof item === 'object' && item !== null) {
@@ -76,26 +81,27 @@ const cleanMockData = (data) => {
         return true;
       });
   }
-  
+
   if (data instanceof Date) {
     return data.toISOString();
   }
-  
+
   if (typeof data === 'object') {
     const cleaned = {};
     for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        const cleanedValue = cleanMockData(data[key]);
+      // Skip Mongoose internal properties and prototype properties
+      if (Object.prototype.hasOwnProperty.call(data, key) && !key.startsWith('$') && !key.startsWith('_')) {
+        const cleanedValue = cleanMockData(data[key], seen);
         // Only include non-empty values
-        if (cleanedValue !== null && cleanedValue !== "" && 
-            !(Array.isArray(cleanedValue) && cleanedValue.length === 0)) {
+        if (cleanedValue !== null && cleanedValue !== "" &&
+          !(Array.isArray(cleanedValue) && cleanedValue.length === 0)) {
           cleaned[key] = cleanedValue;
         }
       }
     }
     return cleaned;
   }
-  
+
   return data;
 };
 
@@ -142,9 +148,9 @@ const getSystemPrompt = (currentSection, currentField, collectedData) => {
     publications: "Ask if they have any research publications, papers, or articles. Optional.",
   };
 
-  const currentGuide = sectionGuides[currentSection]?.[currentField] || 
-                      sectionGuides[currentSection] || 
-                      "Continue the conversation naturally.";
+  const currentGuide = sectionGuides[currentSection]?.[currentField] ||
+    sectionGuides[currentSection] ||
+    "Continue the conversation naturally.";
 
   // Count how much real data we have
   const cleanData = cleanMockData(collectedData);
@@ -193,7 +199,7 @@ Keep responses warm, professional, and encouraging. Make them excited about buil
 // Get appropriate question based on current state
 const getNextQuestion = (currentSection, currentField, userName = null) => {
   const greeting = userName ? `${userName}` : "there";
-  
+
   const questions = {
     personal: {
       name: `Hi! 👋 I'm ResumeAI, your personal resume assistant. I'm here to help you build an amazing resume through a friendly chat. Let's start with the basics - what's your full name?`,
@@ -385,12 +391,12 @@ export const getAIResponse = async (
 
   try {
     const aiResponse = await callGroqAPI(messages);
-    
+
     // Fallback if AI fails
     if (!aiResponse) {
       return getNextQuestion(currentSection, currentField, userName);
     }
-    
+
     return aiResponse;
   } catch (error) {
     console.error("GROQ failed, using fallback question:", error);
@@ -453,13 +459,13 @@ Extract now:`;
     ];
 
     const extracted = await callGroqAPI(messages);
-    
+
     if (!extracted) {
       return userMessage.trim();
     }
 
     const trimmed = extracted.trim();
-    
+
     // Double-check if the AI returned "SKIP" or similar
     if (isSkipRequest(trimmed)) {
       return "SKIP";
@@ -483,30 +489,30 @@ Extract now:`;
 export const suggestSectionImprovements = async (section, data) => {
   if (section === "experience" && data.highlights && Array.isArray(data.highlights)) {
     const optimizedHighlights = [];
-    
+
     for (const highlight of data.highlights) {
       if (highlight && !containsMockData(highlight)) {
         const optimized = await optimizeExperienceHighlight(highlight);
         optimizedHighlights.push(optimized);
       }
     }
-    
+
     return { ...data, highlights: optimizedHighlights };
   }
-  
+
   if (section === "projects" && data.highlights && Array.isArray(data.highlights)) {
     const optimizedHighlights = [];
-    
+
     for (const highlight of data.highlights) {
       if (highlight && !containsMockData(highlight)) {
         const optimized = await optimizeProjectDescription(highlight);
         optimizedHighlights.push(optimized);
       }
     }
-    
+
     return { ...data, highlights: optimizedHighlights };
   }
-  
+
   return data;
 };
 

@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight, Sparkles } from 'lucide-react';
 import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate } from '../services/resume.api';
-import { StartAgentChat, MsgAgent } from '../services/agent.api';
+import { StartAgentChat, MsgAgent, SkipAgentQuestion } from '../services/agent.api';
 import { getAllTemplates } from '../services/template.api';
 import { GridScan } from '../components/ui/gridScan';
 import DotGrid from '../components/ui/dotGrid';
@@ -132,6 +132,34 @@ const Editor = () => {
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: "Sorry, I encountered an error. Please try again."
+            }]);
+        } finally {
+            setChatLoading(false);
+        }
+    };
+
+    const handleSkip = async () => {
+        if (chatLoading) return;
+        setChatLoading(true);
+
+        // Optimistically add "Skip" message
+        setMessages(prev => [...prev, { role: 'user', content: 'Skip' }]);
+
+        try {
+            const response = await SkipAgentQuestion({ resumeId: id });
+
+            if (response.data?.data) {
+                const { aiMessage, conversationState } = response.data.data;
+                setMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
+
+                // Update state if needed
+                // console.log("Skipped to:", conversationState);
+            }
+        } catch (error) {
+            console.error("Skip error:", error);
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: "Sorry, I couldn't skip this question. Please try again."
             }]);
         } finally {
             setChatLoading(false);
@@ -378,6 +406,14 @@ const Editor = () => {
                                 placeholder="Type your answer..."
                                 className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-slate-400 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400 text-slate-700 shadow-inner relative z-10"
                             />
+                            <button
+                                type="button"
+                                onClick={handleSkip}
+                                disabled={chatLoading}
+                                className="absolute right-12 top-2 p-2 px-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium z-20 shadow-sm mr-2"
+                            >
+                                Skip
+                            </button>
                             <button
                                 type="submit"
                                 disabled={!inputMessage.trim() || chatLoading}

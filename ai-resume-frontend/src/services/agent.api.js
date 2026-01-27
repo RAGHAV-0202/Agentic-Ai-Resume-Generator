@@ -9,3 +9,5 @@ export const UpdateResumeData = (data) => api.post('/agent/update', data);
 export const GetAgentStatus = (resumeId) => api.get(`api/agent/status/${resumeId}`);
 
 export const ResetAgentChat = (resumeId) => api.post(`api/agent/reset/${resumeId}`);
+
+export const SkipAgentQuestion = (data) => api.post('api/agent/skip', data);
