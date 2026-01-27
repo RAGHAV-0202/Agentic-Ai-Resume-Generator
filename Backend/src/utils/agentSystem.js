@@ -158,14 +158,18 @@ EXTRACTION RULES:
 1. Extract ALL fields mentioned, even if they're from different sections
 2. Example: "I'm John Doe, email john@email.com, I work at Google" → Extract name, email, company
 3. Handle updates: "update my email to new@email.com" or "change company to Microsoft"
-4. For lists (highlights, skills): split by commas or bullet points
+4. For lists (highlights, skills, coursework): 
+   - Split by commas, bullet points, OR newlines using "\n"
+   - CRITICAL: If the user provides a paragraph for 'highlights', split it into separate sentences/points.
 5. Detect skip/pass requests
 6. Be intelligent about context (if talking about work experience, company/position are likely mentioned)
 7. Clean extracted values (remove phrases like "my name is", "I work at", etc.)
 
 Examples:
-- "I'm Raghav Kumar from Panipat" → [{section: "personal", field: "name", value: "Raghav Kumar"}, {section: "personal", field: "location", value: "Panipat"}]
+- "I'm Raghav Kapoora from Panipat" → [{section: "personal", field: "name", value: "Raghav Kapoor"}, {section: "personal", field: "location", value: "Panipat"}]
 - "I worked at Google as Software Engineer from 2020 to 2023" → [{section: "experience", field: "company", value: "Google", arrayIndex: 0}, {section: "experience", field: "position", value: "Software Engineer", arrayIndex: 0}, {section: "experience", field: "startDate", value: "2020", arrayIndex: 0}, {section: "experience", field: "endDate", value: "2023", arrayIndex: 0}]
+- dont got to arrayIndex : 1 , unless you ask "add more experience" or "add more projects" or "add more education" and user agrees
+- "highlights: I built a website. I optimized the backend. I led a team." → [{section: "experience", field: "highlights", value: "I built a website. (optimize content add more as per yourself in this), I optimized the backend., I led a team", arrayIndex: 0}] 
 - "Update my email to raghav@gmail.com" → [{section: "personal", field: "email", value: "raghav@gmail.com"}], update_request: true
 
 Call the extract_resume_data function with the extracted information.`;
@@ -579,7 +583,20 @@ Generate a short, punchy question for the ${nextField.field} field.`;
 
         // Handle array fields (highlights, coursework, technologies)
         if (["highlights", "coursework", "technologies"].includes(field)) {
-          const items = value.split(",").map((s) => s.trim()).filter(Boolean);
+          let items = [];
+
+          // Split by comma or semicolon
+          if (typeof value === 'string') {
+            // If it's a long paragraph (highlights), try splitting by periods too
+            if (field === 'highlights' && value.length > 50 && !value.includes(',')) {
+              items = value.split(/[.;\n]+/).map(s => s.trim()).filter(Boolean);
+            } else {
+              items = value.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+            }
+          } else if (Array.isArray(value)) {
+            items = value;
+          }
+
           updatedData[section][arrayIndex][field] = items;
 
           // Auto-optimize highlights for experience/projects

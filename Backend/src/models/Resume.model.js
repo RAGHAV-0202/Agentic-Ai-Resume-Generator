@@ -4,7 +4,7 @@ const resumeSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User', 
+      ref: 'User',
       required: true,
       index: true,
     },
@@ -56,6 +56,13 @@ const resumeSchema = new mongoose.Schema(
         content: {
           type: String,
           required: true,
+        },
+        // Metadata for context awareness
+        nextSection: {
+          type: String,
+        },
+        nextField: {
+          type: String,
         },
         timestamp: {
           type: Date,
@@ -149,10 +156,12 @@ const resumeSchema = new mongoose.Schema(
 
 resumeSchema.index({ userId: 1, createdAt: -1 });
 
-resumeSchema.methods.addMessage = function (role, content) {
+resumeSchema.methods.addMessage = function (role, content, nextSection = null, nextField = null) {
   this.chatHistory.push({
     role,
     content,
+    nextSection,
+    nextField,
     timestamp: new Date(),
   });
   return this.save();
@@ -166,7 +175,7 @@ resumeSchema.methods.isSectionComplete = function (section) {
     projects: ['name'],
     skills: ['languages', 'technologies'],
     // Added achievements check (simple check if array has items)
-    achievements: [], 
+    achievements: [],
   };
 
   const fields = sectionFields[section];
@@ -178,7 +187,7 @@ resumeSchema.methods.isSectionComplete = function (section) {
 
   // Check for achievements specifically
   if (section === 'achievements') {
-     return this.data.achievements && this.data.achievements.length > 0;
+    return this.data.achievements && this.data.achievements.length > 0;
   }
 
   return this.data[section] && this.data[section].length > 0;

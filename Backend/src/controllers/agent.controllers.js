@@ -177,8 +177,8 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     }
   });
 
-  // Save AI response
-  await resume.addMessage("assistant", result.nextQuestion);
+  // Save AI response with context metadata
+  await resume.addMessage("assistant", result.nextQuestion, result.nextSection, result.nextField);
 
   // Update conversation state
   resume.conversationState.currentSection = result.nextSection;
@@ -275,7 +275,7 @@ export const updateResumeData = asyncHandler(async (req, res) => {
   });
 
   await resume.addMessage("user", updateRequest);
-  await resume.addMessage("assistant", `✅ Updated successfully! ${result.nextQuestion}`);
+  await resume.addMessage("assistant", `✅ Updated successfully! ${result.message}`, result.nextSection, result.nextField);
 
   await resume.save();
 
@@ -413,7 +413,8 @@ export const skipCurrentField = asyncHandler(async (req, res) => {
   const agent = createAgent(process.env.GROQ_API_KEY);
 
   // Clean mock data
-  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+  // PASS keepSkips = true so that __SKIPPED__ values are preserved for the Agent Logic
+  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data, new WeakSet(), true);
 
   // Identify what is being skipped
   // We need to know the CURRENT field being asked. 
@@ -461,14 +462,17 @@ export const skipCurrentField = asyncHandler(async (req, res) => {
   resume.conversationState.isComplete = result.isComplete;
   resume.conversationState.pendingArrayAddition = result.pendingArrayAddition;
 
-  await resume.addMessage("assistant", result.message);
+  await resume.addMessage("assistant", result.message, result.nextSection, result.nextField);
   await resume.save();
+
+  // Generate clean data for frontend (without skips)
+  const responseData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data, new WeakSet(), false);
 
   res.status(200).json(
     new ApiResponse(200, {
       aiMessage: result.message,
       conversationState: resume.conversationState,
-      resumeData: cleanedData,
+      resumeData: responseData,
     })
   );
 });

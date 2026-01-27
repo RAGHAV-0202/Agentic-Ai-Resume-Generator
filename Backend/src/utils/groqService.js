@@ -58,11 +58,13 @@ const containsMockData = (value) => {
 };
 
 // Recursively clean mock data from collected data
-const cleanMockData = (data, seen = new WeakSet()) => {
+const cleanMockData = (data, seen = new WeakSet(), keepSkips = false) => {
   if (data === null || data === undefined) return null;
 
   if (typeof data === 'string') {
-    if (data === "__SKIPPED__") return ""; // Strip skipped values
+    if (data === "__SKIPPED__") {
+      return keepSkips ? data : ""; // Keep if requested, else strip
+    }
     return containsMockData(data) ? "" : data;
   }
 
@@ -73,10 +75,13 @@ const cleanMockData = (data, seen = new WeakSet()) => {
 
   if (Array.isArray(data)) {
     return data
-      .map(item => cleanMockData(item, seen))
+      .map(item => cleanMockData(item, seen, keepSkips))
       .filter(item => {
         if (typeof item === 'string') return item !== "";
         if (typeof item === 'object' && item !== null) {
+          // If we are keeping skips, we shouldn't filter out objects that only contain skips logic?
+          // Actually, if an object has "__SKIPPED__", it is VALUABLE.
+          // The check `v !== ""` handles it because `__SKIPPED__` is not `""`.
           return Object.values(item).some(v => v !== "" && v !== null);
         }
         return true;
@@ -92,7 +97,7 @@ const cleanMockData = (data, seen = new WeakSet()) => {
     for (const key in data) {
       // Skip Mongoose internal properties and prototype properties
       if (Object.prototype.hasOwnProperty.call(data, key) && !key.startsWith('$') && !key.startsWith('_')) {
-        const cleanedValue = cleanMockData(data[key], seen);
+        const cleanedValue = cleanMockData(data[key], seen, keepSkips);
         // Only include non-empty values
         if (cleanedValue !== null && cleanedValue !== "" &&
           !(Array.isArray(cleanedValue) && cleanedValue.length === 0)) {
