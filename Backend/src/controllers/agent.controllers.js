@@ -463,6 +463,9 @@ export const skipCurrentField = asyncHandler(async (req, res) => {
   resume.conversationState.pendingArrayAddition = result.pendingArrayAddition;
 
   await resume.addMessage("assistant", result.message, result.nextSection, result.nextField);
+
+  // CRITICAL: Mark data as modified to ensure skips are saved
+  resume.markModified('data');
   await resume.save();
 
   // Generate clean data for frontend (without skips)

@@ -607,6 +607,11 @@ Generate a short, punchy question for the ${nextField.field} field.`;
                   .then(optimized => {
                     updatedData[section][arrayIndex][field][i] = optimized;
                   })
+                  .catch(err => {
+                    console.error("Optimization failed for item:", i, err);
+                    // Keep original value on error
+                    updatedData[section][arrayIndex][field][i] = items[i];
+                  })
               );
             }
           }
