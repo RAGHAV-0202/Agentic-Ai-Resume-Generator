@@ -146,7 +146,8 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   const agent = createAgent(process.env.GROQ_API_KEY);
 
   // Clean mock data before processing
-  const cleanedData = cleanMockData(resume.data);
+  // CRITICAL FIX: Must convert Mongoose object to plain object to ensure all fields are copied
+  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
   // Build conversation history for context
   const conversationHistory = resume.chatHistory.map((msg) => ({
@@ -250,7 +251,7 @@ export const updateResumeData = asyncHandler(async (req, res) => {
   const agent = createAgent(process.env.GROQ_API_KEY);
 
   // Clean mock data before processing
-  const cleanedData = cleanMockData(resume.data);
+  const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
   // Process update request
   const result = await agent.processMessage(
