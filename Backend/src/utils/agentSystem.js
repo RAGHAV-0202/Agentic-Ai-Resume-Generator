@@ -6,8 +6,8 @@ const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 // ROTATION STRATEGY: Use a pool of models to avoid Rate Limits
 const MODELS = [
   "llama-3.3-70b-versatile",
-  "mixtral-8x7b-32768",
-  "llama-3.1-70b-versatile"
+  "openai/gpt-oss-20b",
+  "llama-3.1-8b-instant"
 ];
 
 const getRandomModel = () => MODELS[Math.floor(Math.random() * MODELS.length)];
