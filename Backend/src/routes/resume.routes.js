@@ -1,7 +1,5 @@
 import express from "express";
-import {
-  createResume,
-  getUserResumes,
+import { getUserResumes,
   getResumeById,
   deleteResume,
   setResumeTemplate,
@@ -14,7 +12,7 @@ const router = express.Router();
 router.use(verifyJWT);
 
 // router.post("/", createResume);
-router.post("/" , createResumeWithPreview)
+router.post("/", createResumeWithPreview)
 router.get("/", getUserResumes);
 router.get("/:id", getResumeById);
 router.delete("/:id", deleteResume);

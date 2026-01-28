@@ -9,7 +9,7 @@ import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
 import { getMockPreviewData } from "../utils/agentSystem.js";
 
 
-export const createResume = asyncHandler(async (req, res) => {
+export const createResumeWithPreview = asyncHandler(async (req, res) => {
   const { templateId } = req.body;
   const userId = req.user._id;
 
