@@ -138,7 +138,9 @@ const handleConditionals = (latex, data) => {
   // Skills section conditional
   if (
     (data.skills?.languages && data.skills.languages.length > 0) ||
-    (data.skills?.technologies && data.skills.technologies.length > 0)
+    (data.skills?.frameworks && data.skills.frameworks.length > 0) ||
+    (data.skills?.developerTools && data.skills.developerTools.length > 0) ||
+    (data.skills?.libraries && data.skills.libraries.length > 0)
   ) {
     result = result.replace(/{{#IF_SKILLS}}/g, "");
     result = result.replace(/{{\/IF_SKILLS}}/g, "");
@@ -331,14 +333,34 @@ const populateSkills = (latex, skills) => {
     result = result.replace(/{{#IF_LANGUAGES}}[\s\S]*?{{\/IF_LANGUAGES}}/g, "");
   }
 
-  // Technologies
-  if (skills.technologies && skills.technologies.length > 0) {
-    result = result.replace(/{{#IF_TECHNOLOGIES}}/g, "");
-    result = result.replace(/{{\/IF_TECHNOLOGIES}}/g, "");
-    const techText = skills.technologies.map(t => escapeLatex(t)).join(", ");
-    result = result.replace(/{{TECHNOLOGIES}}/g, techText);
+  // Frameworks
+  if (skills.frameworks && skills.frameworks.length > 0) {
+    result = result.replace(/{{#IF_FRAMEWORKS}}/g, "");
+    result = result.replace(/{{\/IF_FRAMEWORKS}}/g, "");
+    const frameworksText = skills.frameworks.map(f => escapeLatex(f)).join(", ");
+    result = result.replace(/{{FRAMEWORKS}}/g, frameworksText);
   } else {
-    result = result.replace(/{{#IF_TECHNOLOGIES}}[\s\S]*?{{\/IF_TECHNOLOGIES}}/g, "");
+    result = result.replace(/{{#IF_FRAMEWORKS}}[\s\S]*?{{\/IF_FRAMEWORKS}}/g, "");
+  }
+
+  // Developer Tools
+  if (skills.developerTools && skills.developerTools.length > 0) {
+    result = result.replace(/{{#IF_TOOLS}}/g, "");
+    result = result.replace(/{{\/IF_TOOLS}}/g, "");
+    const toolsText = skills.developerTools.map(t => escapeLatex(t)).join(", ");
+    result = result.replace(/{{TOOLS}}/g, toolsText);
+  } else {
+    result = result.replace(/{{#IF_TOOLS}}[\s\S]*?{{\/IF_TOOLS}}/g, "");
+  }
+
+  // Libraries
+  if (skills.libraries && skills.libraries.length > 0) {
+    result = result.replace(/{{#IF_LIBRARIES}}/g, "");
+    result = result.replace(/{{\/IF_LIBRARIES}}/g, "");
+    const librariesText = skills.libraries.map(lib => escapeLatex(lib)).join(", ");
+    result = result.replace(/{{LIBRARIES}}/g, librariesText);
+  } else {
+    result = result.replace(/{{#IF_LIBRARIES}}[\s\S]*?{{\/IF_LIBRARIES}}/g, "");
   }
 
   return result;

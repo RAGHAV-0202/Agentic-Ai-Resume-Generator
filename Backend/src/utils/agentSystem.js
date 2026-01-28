@@ -120,7 +120,9 @@ const MOCK_PREVIEW_DATA = {
   ],
   skills: {
     languages: ["Python", "JavaScript", "TypeScript", "Java", "C++"],
-    technologies: ["React", "Node.js", "PostgreSQL", "AWS", "Docker", "Kubernetes"]
+    frameworks: ["React", "Node.js", "Express.js", "PostgreSQL", "MongoDB"],
+    developerTools: ["Git", "Docker", "Kubernetes", "AWS", "VS Code"],
+    libraries: ["Pandas", "NumPy", "Redux", "Material UI"]
   },
   achievements: [
     "Winner of HackMIT 2022 - Best AI/ML Project",
@@ -388,7 +390,8 @@ Extract now (return JSON):`;
 
       if (isYes) {
         // Create NEW empty entry in array
-        const newEntry = {};
+        const schema = RESUME_SCHEMA[currentSection];
+        const newEntry = schema.isSimpleList ? "" : {};
         resumeData[currentSection].push(newEntry);
 
         // Move to first field of new entry
@@ -404,16 +407,32 @@ Extract now (return JSON):`;
           extracted: null
         };
       } else {
-        // Move to next section
-        const next = this.getNextField(currentSection, currentField, resumeData);
-        return {
-          resumeData,
-          nextQuestion: next.question,
-          nextSection: next.section,
-          nextField: next.field,
-          nextArrayIndex: next.arrayIndex,
-          extracted: null
-        };
+        // user said NO to addMore -> Move to NEXT SECTION
+        const sections = Object.keys(RESUME_SCHEMA);
+        const sectionIndex = sections.indexOf(currentSection);
+
+        if (sectionIndex < sections.length - 1) {
+          const nextSection = sections[sectionIndex + 1];
+          const firstField = RESUME_SCHEMA[nextSection].fields[0];
+          return {
+            resumeData,
+            nextQuestion: QUESTION_TEMPLATES[nextSection][firstField],
+            nextSection: nextSection,
+            nextField: firstField,
+            nextArrayIndex: 0,
+            extracted: null
+          };
+        } else {
+          // Complete
+          return {
+            resumeData,
+            nextQuestion: "🎉 Congratulations! Your resume is complete. You can now download it or make any edits!",
+            nextSection: "complete",
+            nextField: "complete",
+            nextArrayIndex: 0,
+            extracted: null
+          };
+        }
       }
     }
 
@@ -437,10 +456,14 @@ Extract now (return JSON):`;
 
         // Ensure we have an entry at the current index
         while (resumeData[currentSection].length <= currentArrayIndex) {
-          resumeData[currentSection].push({});
+          resumeData[currentSection].push(schema.isSimpleList ? "" : {});
         }
 
-        resumeData[currentSection][currentArrayIndex][currentField] = extraction.value;
+        if (schema.isSimpleList) {
+          resumeData[currentSection][currentArrayIndex] = extraction.value;
+        } else {
+          resumeData[currentSection][currentArrayIndex][currentField] = extraction.value;
+        }
       } else if (schema.type === "object") {
         if (!resumeData[currentSection]) {
           resumeData[currentSection] = {};
