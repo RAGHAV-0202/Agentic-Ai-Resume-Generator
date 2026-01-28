@@ -6,6 +6,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import Template from "../models/Template.model.js";
 import { generateLatex } from "../utils/LatexGenerator.js";
 import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
+import { getMockPreviewData } from "../utils/agentSystem.js";
 
 
 export const createResume = asyncHandler(async (req, res) => {
@@ -17,7 +18,10 @@ export const createResume = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  // Create new resume session with EMPTY data structure (no mock data)
+  // ✅ GET MOCK DATA FOR PREVIEW
+  const mockData = getMockPreviewData();
+
+  // Create new resume with MOCK DATA
   const newResume = await Resume.create({
     userId,
     templateId: templateId || null,
@@ -30,15 +34,7 @@ export const createResume = asyncHandler(async (req, res) => {
       isComplete: false,
     },
     chatHistory: [],
-    data: {
-      personal: {},
-      education: [],
-      experience: [],
-      projects: [],
-      skills: { languages: [], technologies: [] },
-      achievements: [],
-      publications: [],
-    },
+    data: mockData, // ✅ START WITH MOCK DATA
   });
 
   // ✅ GENERATE INITIAL BLANK/TEMPLATE PDF (without mock data)
@@ -150,7 +146,7 @@ export const setResumeTemplate = asyncHandler(async (req, res) => {
   }
 
   resume.templateId = templateId;
-  
+
   // Auto-generate PDF with new template
   try {
     const latexString = generateLatex(template.latexTemplate, resume.data);
@@ -162,7 +158,7 @@ export const setResumeTemplate = asyncHandler(async (req, res) => {
     console.error("PDF generation with new template failed:", error);
     // Don't throw - template is still set
   }
-  
+
   await resume.save();
 
   res
@@ -196,7 +192,7 @@ export const generateResumePDF = asyncHandler(async (req, res) => {
     const latexString = generateLatex(template.latexTemplate, resume.data);
     const pdfBuffer = await compilePDF(latexString, resume._id);
     savePDF(pdfBuffer, resume._id);
-    
+
     resume.pdfUrl = `/pdfs/${resume._id}.pdf`;
     resume.generatedLatex = latexString;
     await resume.save();
@@ -288,14 +284,14 @@ export const getResumeStatus = asyncHandler(async (req, res) => {
       completionPercentage,
       isComplete: resume.conversationState.isComplete,
       sectionsStatus: {
-        personal: sections.personal.every(f => 
+        personal: sections.personal.every(f =>
           resume.data.personal?.[f] && resume.data.personal[f].trim() !== ""
         ),
         education: resume.data.education?.length > 0,
         experience: resume.data.experience?.length > 0,
         projects: resume.data.projects?.length > 0,
-        skills: (resume.data.skills?.languages?.length > 0 || 
-                 resume.data.skills?.technologies?.length > 0),
+        skills: (resume.data.skills?.languages?.length > 0 ||
+          resume.data.skills?.technologies?.length > 0),
       },
     }, "Resume status fetched successfully")
   );

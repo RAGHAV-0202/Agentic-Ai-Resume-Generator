@@ -1,710 +1,483 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════
+ * PRODUCTION-READY INTELLIGENT RESUME AGENT SYSTEM
+ * ═══════════════════════════════════════════════════════════════════
+ * 
+ * Features:
+ * ✓ Asks ALL questions systematically
+ * ✓ Never replaces existing entries - proper array management
+ * ✓ Smart extraction from conversational input
+ * ✓ Mock data for preview on session creation
+ * ✓ Comprehensive field coverage from model
+ * ✓ Production-grade error handling
+ */
+
 import fetch from "node-fetch";
 
-// ====================================================================
-// VALIDATED GROQ MODEL POOL
-// ====================================================================
-// Only use models that are confirmed to work with Groq API
-const VALIDATED_GROQ_MODELS = [
+// ═══════════════════════════════════════════════════════════════════
+// VALIDATED GROQ MODELS
+// ═══════════════════════════════════════════════════════════════════
+const GROQ_MODELS = [
   "llama-3.3-70b-versatile",
   "llama-3.1-8b-instant"
 ];
 
+const getModel = () => GROQ_MODELS[Math.floor(Math.random() * GROQ_MODELS.length)];
 
-
-const getRandomModel = () =>
-  VALIDATED_GROQ_MODELS[Math.floor(Math.random() * VALIDATED_GROQ_MODELS.length)];
-
-// ====================================================================
-// RESUME DATA SCHEMA
-// ====================================================================
+// ═══════════════════════════════════════════════════════════════════
+// COMPLETE RESUME SCHEMA (From Resume Model)
+// ═══════════════════════════════════════════════════════════════════
 const RESUME_SCHEMA = {
   personal: {
+    fields: ["name", "location", "email", "phone", "linkedin", "github", "website"],
     required: ["name", "email", "phone"],
-    optional: ["location", "linkedin", "github", "website"],
     type: "object"
   },
   education: {
+    fields: ["institution", "degree", "startDate", "endDate", "gpa", "coursework"],
     required: ["institution", "degree", "startDate", "endDate"],
-    optional: ["gpa", "coursework", "location"],
+    arrayFields: ["coursework"],
     type: "array"
   },
   experience: {
+    fields: ["company", "position", "location", "startDate", "endDate", "highlights"],
     required: ["company", "position", "startDate", "endDate"],
-    optional: ["location", "highlights"],
+    arrayFields: ["highlights"],
     type: "array"
   },
   projects: {
+    fields: ["name", "link", "date", "highlights", "technologies"],
     required: ["name", "date"],
-    optional: ["link", "highlights", "technologies"],
+    arrayFields: ["highlights", "technologies"],
     type: "array"
   },
   skills: {
+    fields: ["languages", "technologies"],
     required: ["languages", "technologies"],
-    optional: [],
     type: "object"
   },
   achievements: {
+    fields: ["list"],
     required: [],
-    optional: ["list"],
+    type: "array"
+  },
+  publications: {
+    fields: ["title", "authors", "date", "doi"],
+    required: ["title", "authors", "date"],
+    arrayFields: ["authors"],
     type: "array"
   }
 };
 
-// ====================================================================
-// UTILITY FUNCTIONS
-// ====================================================================
-
-/**
- * Check if a value is valid (not empty, not skipped, not mock data)
- */
-const isValidValue = (val) => {
-  if (!val) return false;
-  if (val === "__SKIPPED__" || val === "skip") return false;
-  if (typeof val === "string" && val.trim() === "") return false;
-  if (Array.isArray(val) && val.length === 0) return false;
-  return true;
+// ═══════════════════════════════════════════════════════════════════
+// MOCK DATA FOR PREVIEW
+// ═══════════════════════════════════════════════════════════════════
+const MOCK_PREVIEW_DATA = {
+  personal: {
+    name: "Sarah Chen",
+    location: "Seattle, WA",
+    email: "sarah.chen@email.com",
+    phone: "+1 (206) 555-0123",
+    linkedin: "linkedin.com/in/sarahchen",
+    github: "github.com/sarahchen",
+    website: "sarahchen.dev"
+  },
+  education: [
+    {
+      institution: "University of Washington",
+      degree: "Bachelor of Science in Computer Science",
+      startDate: "2019",
+      endDate: "2023",
+      gpa: "3.9/4.0",
+      coursework: ["Machine Learning", "Data Structures", "Algorithms", "Database Systems"]
+    }
+  ],
+  experience: [
+    {
+      company: "Microsoft",
+      position: "Software Engineer Intern",
+      location: "Redmond, WA",
+      startDate: "June 2022",
+      endDate: "September 2022",
+      highlights: [
+        "Developed cloud-native microservices using Azure and .NET Core",
+        "Improved API response time by 35% through query optimization",
+        "Collaborated with team of 8 engineers on critical infrastructure"
+      ]
+    }
+  ],
+  projects: [
+    {
+      name: "AI Resume Analyzer",
+      link: "github.com/sarahchen/resume-ai",
+      date: "2023",
+      highlights: [
+        "Built ML model to analyze resume effectiveness with 92% accuracy",
+        "Processed 10,000+ resumes for training dataset"
+      ],
+      technologies: ["Python", "TensorFlow", "React", "FastAPI"]
+    }
+  ],
+  skills: {
+    languages: ["Python", "JavaScript", "TypeScript", "Java", "C++"],
+    technologies: ["React", "Node.js", "PostgreSQL", "AWS", "Docker", "Kubernetes"]
+  },
+  achievements: [
+    "Winner of HackMIT 2022 - Best AI/ML Project",
+    "Published research paper on resume optimization algorithms",
+    "Dean's List - All 4 years"
+  ],
+  publications: []
 };
 
-/**
- * Get the current active index for array sections
- * This is crucial for preventing overwrites and loops
- */
-const getActiveArrayIndex = (sectionData) => {
-  if (!Array.isArray(sectionData) || sectionData.length === 0) {
-    return 0; // First entry
+// ═══════════════════════════════════════════════════════════════════
+// INTELLIGENT QUESTION TEMPLATES
+// ═══════════════════════════════════════════════════════════════════
+const QUESTION_TEMPLATES = {
+  personal: {
+    name: "👋 Hi! I'm your AI Resume Assistant. Let's build an amazing resume together! First, what's your full name?",
+    location: "Great! Where are you currently located? (City, State/Country)",
+    email: "What's your professional email address?",
+    phone: "What's the best phone number to reach you at?",
+    linkedin: "Do you have a LinkedIn profile? (Enter the URL or username, or type 'skip')",
+    github: "How about a GitHub profile? Great for showcasing your code! (URL or type 'skip')",
+    website: "Do you have a personal website or portfolio? (URL or type 'skip')"
+  },
+  education: {
+    institution: "🎓 Let's talk about your education! What university or college did you attend?",
+    degree: "What degree did you earn? (e.g., Bachelor of Science in Computer Science)",
+    startDate: "When did you start this degree? (Year is fine, like 2019)",
+    endDate: "When did you graduate or when do you expect to? (Year or 'Present')",
+    gpa: "What was your GPA? (Optional - type 'skip' if you prefer not to include)",
+    coursework: "Any relevant coursework you'd like to highlight? (Separate with commas, or 'skip')"
+  },
+  experience: {
+    company: "💼 Now let's add your work experience! What company did you work for?",
+    position: "What was your job title or position?",
+    location: "Where was this job located? (City, State or 'Remote')",
+    startDate: "When did you start this position? (e.g., June 2022)",
+    endDate: "When did you finish? (Use 'Present' if you're still there)",
+    highlights: "Tell me about your key achievements or responsibilities (2-4 points, separate with commas or new lines)"
+  },
+  projects: {
+    name: "🚀 Let's showcase your projects! What's the name of a project you're proud of?",
+    link: "Do you have a link to this project? (GitHub repo, live demo, etc. or 'skip')",
+    date: "When did you work on this? (Year is fine)",
+    highlights: "What did this project do? Describe its purpose and your contribution (1-2 sentences)",
+    technologies: "What technologies did you use? (e.g., React, Python, AWS - separate with commas)"
+  },
+  skills: {
+    languages: "💻 What programming languages are you proficient in? (e.g., Python, JavaScript, Java)",
+    technologies: "What frameworks, tools, and technologies do you know? (e.g., React, Docker, AWS)"
+  },
+  achievements: {
+    list: "🏆 Any notable achievements, awards, or certifications? (e.g., hackathon wins, scholarships - separate with commas, or 'skip')"
+  },
+  publications: {
+    title: "📄 Do you have any publications or research papers? If yes, what's the title?",
+    authors: "Who are the authors? (Include yourself, separate with commas)",
+    date: "When was it published? (Year or Month Year)",
+    doi: "What's the DOI or publication link? (Optional - type 'skip' if not applicable)"
   }
-
-  // Find the last incomplete entry
-  const lastIndex = sectionData.length - 1;
-  const lastEntry = sectionData[lastIndex];
-
-  // If last entry has any data, it's being worked on
-  if (lastEntry && Object.keys(lastEntry).length > 0) {
-    return lastIndex;
-  }
-
-  return lastIndex;
 };
 
-/**
- * Check if an array entry is complete
- */
-const isArrayEntryComplete = (entry, requiredFields) => {
-  if (!entry) return false;
-  return requiredFields.every(field => isValidValue(entry[field]));
-};
-
-// ====================================================================
+// ═══════════════════════════════════════════════════════════════════
 // MAIN AGENT CLASS
-// ====================================================================
-
-class ResumeAgentV2 {
+// ═══════════════════════════════════════════════════════════════════
+class IntelligentResumeAgent {
   constructor(apiKey) {
     this.apiKey = apiKey;
-    this.GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+    this.API_URL = "https://api.groq.com/openai/v1/chat/completions";
   }
 
-  // ------------------------------------------------------------------
-  // GROQ API CALLER
-  // ------------------------------------------------------------------
-  async callGroq(messages, tools = null, toolChoice = "auto", temperature = 0.5) {
-    const model = getRandomModel();
+  // ─────────────────────────────────────────────────────────────────
+  // GROQ API CALL
+  // ─────────────────────────────────────────────────────────────────
+  async callGroq(messages, tools = null, maxRetries = 2) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const payload = {
+          model: getModel(),
+          messages,
+          temperature: 0.3,
+          max_tokens: 1500
+        };
 
-    const payload = {
-      model,
-      messages,
-      temperature,
-      max_tokens: 2000
-    };
+        if (tools) {
+          payload.tools = tools;
+          payload.tool_choice = "required";
+        }
 
-    if (tools) {
-      payload.tools = tools;
-      payload.tool_choice = toolChoice;
-    }
+        const response = await fetch(this.API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
 
-    try {
-      const response = await fetch(this.GROQ_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`Groq API Error (${response.status}):`, errText);
-        throw new Error(`Groq API error: ${response.status}`);
+        const data = await response.json();
+        return data.choices[0].message;
+      } catch (error) {
+        console.error(`Attempt ${attempt + 1} failed:`, error.message);
+        if (attempt === maxRetries) throw error;
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
       }
-
-      const data = await response.json();
-      return data.choices[0].message;
-    } catch (error) {
-      console.error("❌ Groq API Call Failed:", error.message);
-      throw error;
     }
   }
 
-  // ------------------------------------------------------------------
-  // ATS CONTENT OPTIMIZER
-  // ------------------------------------------------------------------
-  async optimizeForATS(content, contentType = "highlight") {
-    const prompt = `Optimize this ${contentType} for ATS and impact:
+  // ─────────────────────────────────────────────────────────────────
+  // SMART DATA EXTRACTION
+  // ─────────────────────────────────────────────────────────────────
+  async extractData(userMessage, field, section, arrayIndex = 0) {
+    const isArrayField = RESUME_SCHEMA[section]?.arrayFields?.includes(field);
 
-Original: "${content}"
+    const extractionPrompt = `Extract the "${field}" value from this message: "${userMessage}"
 
-Requirements:
-- Start with a strong action verb
-- Be specific and quantifiable where possible
-- Keep it concise (1-2 lines max)
-- Focus on impact and results
-- Don't add fake metrics
+Context: Section is "${section}", Field is "${field}"
 
-Return ONLY the optimized version.`;
+Rules:
+1. Extract ONLY the ${field} value
+2. Remove conversational fluff like "My ${field} is", "I worked at", etc.
+3. ${isArrayField ? `This is an array field. Split by commas or newlines and return as array.` : `Return as plain text.`}
+4. If user says "skip", "pass", "none", "n/a" → return "SKIP"
+5. Be smart - extract from natural language
 
-    const messages = [
-      {
-        role: "system",
-        content: "You are an expert resume writer. Return only the optimized text, nothing else."
-      },
-      { role: "user", content: prompt }
-    ];
+Examples:
+"My name is John Smith" → "John Smith"
+"I go to MIT" → "MIT"
+"I know Python, JavaScript, and Java" → ["Python", "JavaScript", "Java"]
+"skip" → "SKIP"
 
-    try {
-      const response = await this.callGroq(messages, null, "auto", 0.3);
-      return response.content?.trim() || content;
-    } catch (error) {
-      console.error("⚠️  Optimization failed, using original:", error.message);
-      return content;
-    }
-  }
-
-  // ------------------------------------------------------------------
-  // SMART FIELD EXTRACTION WITH EXPLICIT INDEX TRACKING
-  // ------------------------------------------------------------------
-  async extractMultipleFields(userMessage, currentState, collectedData) {
-    const { currentSection, currentField } = currentState;
-
-    // Determine the correct array index
-    let targetIndex = 0;
-    if (RESUME_SCHEMA[currentSection]?.type === "array") {
-      const sectionData = collectedData[currentSection] || [];
-      targetIndex = getActiveArrayIndex(sectionData);
-    }
+Extract now (return JSON):`;
 
     const tools = [{
       type: "function",
       function: {
-        name: "extract_resume_data",
-        description: "Extract resume information from user message",
+        name: "extract_field",
+        description: "Extract specific field value from user message",
         parameters: {
           type: "object",
           properties: {
-            extracted_fields: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  section: {
-                    type: "string",
-                    enum: ["personal", "education", "experience", "projects", "skills", "achievements"]
-                  },
-                  field: { type: "string" },
-                  value: { type: "string" },
-                  arrayIndex: {
-                    type: "number",
-                    description: `Current working index is ${targetIndex}. Use this for updates to current entry.`
-                  }
-                },
-                required: ["section", "field", "value"]
-              }
+            value: {
+              type: isArrayField ? "array" : "string",
+              description: `The extracted ${field} value`
             },
-            user_wants_to_skip: { type: "boolean", default: false }
+            is_skip: {
+              type: "boolean",
+              description: "True if user wants to skip this field"
+            }
           },
-          required: ["extracted_fields"]
+          required: ["value", "is_skip"]
         }
       }
     }];
 
-    const extractionPrompt = `Extract resume data from: "${userMessage}"
-
-CURRENT CONTEXT:
-- Section: ${currentSection}
-- Field: ${currentField}
-- Active Array Index: ${targetIndex}
-- Existing Data for this entry: ${JSON.stringify(collectedData[currentSection]?.[targetIndex] || {}, null, 2)}
-
-CRITICAL RULES:
-1. If updating the CURRENT entry, use arrayIndex: ${targetIndex}
-2. If the user explicitly mentions adding a NEW item, use arrayIndex: ${targetIndex + 1}
-3. Extract ALL mentioned fields in a single call
-4. Set user_wants_to_skip: true only if user explicitly says "skip", "pass", "next"
-
-Extract now:`;
-
-    const messages = [
-      { role: "system", content: "You are a precise data extraction assistant for resume building." },
-      { role: "user", content: extractionPrompt }
-    ];
-
     try {
-      const response = await this.callGroq(messages, tools, "required");
+      const response = await this.callGroq(
+        [{ role: "user", content: extractionPrompt }],
+        tools
+      );
 
       if (response.tool_calls?.[0]) {
-        const args = JSON.parse(response.tool_calls[0].function.arguments);
-        return args;
+        const result = JSON.parse(response.tool_calls[0].function.arguments);
+        if (result.is_skip) return { skip: true };
+        return { value: result.value, skip: false };
       }
-
-      return { extracted_fields: [], user_wants_to_skip: false };
     } catch (error) {
-      console.error("❌ Extraction failed:", error.message);
-      return { extracted_fields: [], user_wants_to_skip: false };
+      console.error("Extraction failed:", error);
     }
+
+    // Fallback: basic extraction
+    if (/^(skip|pass|none|n\/?a)$/i.test(userMessage.trim())) {
+      return { skip: true };
+    }
+
+    return { value: userMessage.trim(), skip: false };
   }
 
-  // ------------------------------------------------------------------
-  // PRIORITY-BASED MISSING FIELD ANALYZER
-  // ------------------------------------------------------------------
-  analyzeMissingFields(collectedData, currentState = null) {
-    const missing = [];
+  // ─────────────────────────────────────────────────────────────────
+  // GET NEXT QUESTION
+  // ─────────────────────────────────────────────────────────────────
+  getNextField(currentSection, currentField, resumeData) {
+    const schema = RESUME_SCHEMA[currentSection];
+    if (!schema) return null;
 
-    // Helper to check if field is missing
-    const isMissing = (val) => !isValidValue(val);
+    const fields = schema.fields;
+    const currentIndex = fields.indexOf(currentField);
 
-    // PRIORITY 1: Current active entry (prevents perfectionist regression)
-    if (currentState && RESUME_SCHEMA[currentState.currentSection]?.type === "array") {
-      const section = currentState.currentSection;
-      const sectionData = collectedData[section] || [];
-      const activeIndex = getActiveArrayIndex(sectionData);
-      const activeEntry = sectionData[activeIndex] || {};
+    // Check if current section is array type
+    if (schema.type === "array") {
+      const arrayData = resumeData[currentSection] || [];
+      const currentArrayIndex = arrayData.length > 0 ? arrayData.length - 1 : 0;
+      const currentEntry = arrayData[currentArrayIndex] || {};
 
-      const schema = RESUME_SCHEMA[section];
-      const allFields = [...schema.required, ...schema.optional];
-
-      for (const field of allFields) {
-        if (isMissing(activeEntry[field])) {
-          const isRequired = schema.required.includes(field);
-          missing.push({
-            section,
-            field,
-            arrayIndex: activeIndex,
-            isArray: true,
-            description: `${field} for ${section} #${activeIndex + 1}`,
-            priority: isRequired ? 1 : 2
-          });
-
-          // Return immediately - focus on completing current entry first
-          if (isRequired) return [missing[0]];
-        }
-      }
-    }
-
-    // PRIORITY 2: Personal section (always required)
-    if (!currentState || currentState.currentSection === "personal") {
-      const personal = collectedData.personal || {};
-      const schema = RESUME_SCHEMA.personal;
-
-      for (const field of schema.required) {
-        if (isMissing(personal[field])) {
-          missing.push({
-            section: "personal",
-            field,
-            isArray: false,
-            description: `Your ${field}`,
-            priority: 1
-          });
-        }
-      }
-
-      if (missing.length > 0) return [missing[0]];
-
-      for (const field of schema.optional) {
-        if (personal[field] === undefined) {
-          missing.push({
-            section: "personal",
-            field,
-            isArray: false,
-            description: `Your ${field} (optional)`,
-            priority: 3
-          });
-        }
-      }
-    }
-
-    // PRIORITY 3: First entry of array sections
-    const arraySections = ["education", "experience", "projects"];
-    for (const section of arraySections) {
-      const sectionData = collectedData[section] || [];
-
-      if (sectionData.length === 0) {
-        const schema = RESUME_SCHEMA[section];
-        missing.push({
-          section,
-          field: schema.required[0],
-          arrayIndex: 0,
-          isArray: true,
-          description: `Add your first ${section}`,
-          priority: section === "education" ? 2 : 3
-        });
-      }
-    }
-
-    // PRIORITY 4: Skills
-    if (!collectedData.skills?.languages || collectedData.skills.languages.length === 0) {
-      missing.push({
-        section: "skills",
-        field: "languages",
-        description: "Programming languages",
-        priority: 2
-      });
-    }
-
-    if (!collectedData.skills?.technologies || collectedData.skills.technologies.length === 0) {
-      missing.push({
-        section: "skills",
-        field: "technologies",
-        description: "Technologies and frameworks",
-        priority: 2
-      });
-    }
-
-    // Sort by priority and return top missing field
-    missing.sort((a, b) => a.priority - b.priority);
-    return missing.length > 0 ? [missing[0]] : [];
-  }
-
-  // ------------------------------------------------------------------
-  // INTELLIGENT NEXT QUESTION GENERATOR
-  // ------------------------------------------------------------------
-  async generateNextQuestion(collectedData, conversationHistory = [], forceSkip = false, stateContext = null) {
-    // Build current state from context if provided
-    const currentState = stateContext || {
-      currentSection: conversationHistory[conversationHistory.length - 1]?.nextSection || "personal",
-      currentField: conversationHistory[conversationHistory.length - 1]?.nextField || "name"
-    };
-
-    // Check for "Add More" scenario
-    const lastMsg = conversationHistory[conversationHistory.length - 1];
-    const isAddMoreContext = lastMsg?.nextField === "add_more";
-
-    // Handle array section completion
-    const arraySections = ["education", "experience", "projects"];
-    if (!isAddMoreContext && arraySections.includes(currentState.currentSection)) {
-      const sectionData = collectedData[currentState.currentSection] || [];
-      const activeIndex = getActiveArrayIndex(sectionData);
-      const activeEntry = sectionData[activeIndex] || {};
-      const schema = RESUME_SCHEMA[currentState.currentSection];
-
-      // Check if current entry is complete
-      const isComplete = isArrayEntryComplete(activeEntry, schema.required);
-
-      if (isComplete && sectionData.length > 0) {
-        return {
-          message: `Great! Would you like to add another ${currentState.currentSection.slice(0, -1)}? (Yes/No)`,
-          nextSection: currentState.currentSection,
-          nextField: "add_more",
-          isComplete: false,
-          pendingArrayAddition: true
-        };
-      }
-    }
-
-    // Get next missing field
-    const missingFields = this.analyzeMissingFields(collectedData, currentState);
-
-    if (missingFields.length === 0) {
-      return {
-        message: "🎉 Congratulations! Your resume is complete. You can now download it or make any edits.",
-        nextSection: "complete",
-        nextField: "complete",
-        isComplete: true
-      };
-    }
-
-    const next = missingFields[0];
-
-    // Generate contextual question
-    const questionPrompt = `Generate a friendly, conversational question asking for: ${next.description}
-
-Context:
-- Section: ${next.section}
-- Field: ${next.field}
-- This is for a professional resume
-
-Requirements:
-- Keep it warm and encouraging
-- Make it clear if the field is optional
-- Add a helpful tip if appropriate
-- Keep it under 30 words
-
-Return ONLY the question.`;
-
-    try {
-      const messages = [
-        { role: "system", content: "You are a friendly resume coach. Ask clear, encouraging questions." },
-        { role: "user", content: questionPrompt }
-      ];
-
-      const response = await this.callGroq(messages);
-      const question = response.content?.trim() || `Could you provide your ${next.field}?`;
-
-      return {
-        message: question,
-        nextSection: next.section,
-        nextField: next.field,
-        arrayIndex: next.arrayIndex,
-        isComplete: false,
-        pendingArrayAddition: false
-      };
-    } catch (error) {
-      console.error("⚠️  Question generation failed, using fallback");
-      return {
-        message: `Could you provide your ${next.description}?`,
-        nextSection: next.section,
-        nextField: next.field,
-        arrayIndex: next.arrayIndex,
-        isComplete: false
-      };
-    }
-  }
-
-  // ------------------------------------------------------------------
-  // MAIN MESSAGE PROCESSOR (THE ROUTER/TRAFFIC COP)
-  // ------------------------------------------------------------------
-  async processMessage(userMessage, currentData, conversationHistory = [], currentState = null) {
-    const updatedData = JSON.parse(JSON.stringify(currentData));
-    const lastState = conversationHistory[conversationHistory.length - 1] || {};
-
-    // Build current state
-    const state = currentState || {
-      currentSection: lastState.nextSection || "personal",
-      currentField: lastState.nextField || "name"
-    };
-
-    // ===== COMMAND HANDLER: "Add More" Logic =====
-    if (lastState.nextField === "add_more") {
-      const isYes = /^(yes|yeah|yep|sure|ok|okay|yup|add|more|another)$/i.test(userMessage.trim());
-
-      if (isYes) {
-        // Create new empty entry IMMEDIATELY
-        const section = state.currentSection;
-        updatedData[section] = updatedData[section] || [];
-        updatedData[section].push({}); // Add empty object
-
-        const schema = RESUME_SCHEMA[section];
-        const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, {
-          currentSection: section,
-          currentField: schema.required[0] // Start with first required field
-        });
-
-        return {
-          updatedData,
-          extractedFields: [],
-          nextQuestion: nextQuestion.message,
-          nextSection: nextQuestion.nextSection,
-          nextField: nextQuestion.nextField,
-          arrayIndex: updatedData[section].length - 1,
-          isComplete: false,
-          pendingArrayAddition: false
-        };
-      } else {
-        // User said "No" - move to next section
-        const sections = Object.keys(RESUME_SCHEMA);
-        const currentIndex = sections.indexOf(state.currentSection);
-        const nextSectionKey = currentIndex < sections.length - 1 ? sections[currentIndex + 1] : null;
-
-        if (nextSectionKey) {
-          const nextSchema = RESUME_SCHEMA[nextSectionKey];
-          const nextField = nextSchema.type === "array"
-            ? nextSchema.required[0]
-            : (nextSchema.required[0] || nextSchema.optional[0]);
-
-          const nextQuestion = await this.generateNextQuestion(updatedData, conversationHistory, false, {
-            currentSection: nextSectionKey,
-            currentField: nextField
-          });
-
+      // Find next missing field in current entry
+      for (let i = currentIndex + 1; i < fields.length; i++) {
+        const nextField = fields[i];
+        if (!currentEntry[nextField] || currentEntry[nextField] === "") {
           return {
-            updatedData,
-            extractedFields: [],
-            nextQuestion: nextQuestion.message,
-            nextSection: nextQuestion.nextSection,
-            nextField: nextQuestion.nextField,
-            isComplete: false,
-            pendingArrayAddition: false
+            section: currentSection,
+            field: nextField,
+            arrayIndex: currentArrayIndex,
+            question: QUESTION_TEMPLATES[currentSection][nextField]
           };
         }
       }
-    }
 
-    // ===== DATA EXTRACTOR =====
-    const extraction = await this.extractMultipleFields(userMessage, state, updatedData);
-
-    // Handle skip request
-    if (extraction.user_wants_to_skip) {
-      const section = state.currentSection;
-      const field = state.currentField;
-
-      if (RESUME_SCHEMA[section]?.type === "array") {
-        const activeIndex = getActiveArrayIndex(updatedData[section] || []);
-        updatedData[section] = updatedData[section] || [];
-        while (updatedData[section].length <= activeIndex) {
-          updatedData[section].push({});
-        }
-        updatedData[section][activeIndex][field] = "__SKIPPED__";
-      } else if (section === "personal") {
-        updatedData.personal = updatedData.personal || {};
-        updatedData.personal[field] = "__SKIPPED__";
-      } else if (section === "skills") {
-        updatedData.skills = updatedData.skills || {};
-        updatedData.skills[field] = "__SKIPPED__";
+      // Current entry complete - ask to add more
+      if (currentField === fields[fields.length - 1]) {
+        return {
+          section: currentSection,
+          field: "addMore",
+          arrayIndex: currentArrayIndex,
+          question: `Great! Would you like to add another ${currentSection.slice(0, -1)}? (Yes/No)`
+        };
       }
     }
 
-    // Process extracted fields
-    for (const item of extraction.extracted_fields) {
-      const { section, field, value, arrayIndex } = item;
-
-      if (RESUME_SCHEMA[section]?.type === "array") {
-        updatedData[section] = updatedData[section] || [];
-        const targetIndex = arrayIndex !== undefined ? arrayIndex : getActiveArrayIndex(updatedData[section]);
-
-        while (updatedData[section].length <= targetIndex) {
-          updatedData[section].push({});
-        }
-
-        // Handle array fields within objects
-        if (["highlights", "coursework", "technologies"].includes(field)) {
-          const items = Array.isArray(value)
-            ? value
-            : value.split(",").map(v => v.trim()).filter(v => v);
-
-          // Auto-optimize highlights
-          if (field === "highlights") {
-            const optimized = await Promise.all(
-              items.map(item => this.optimizeForATS(item, "highlight"))
-            );
-            updatedData[section][targetIndex][field] = optimized;
-          } else {
-            updatedData[section][targetIndex][field] = items;
-          }
-        } else {
-          updatedData[section][targetIndex][field] = value;
-        }
-      } else if (section === "skills") {
-        updatedData.skills = updatedData.skills || {};
-        const items = value.split(",").map(v => v.trim()).filter(v => v);
-        updatedData.skills[field] = items;
-      } else if (section === "achievements") {
-        updatedData.achievements = updatedData.achievements || [];
-        const items = value.split(",").map(v => v.trim()).filter(v => v);
-        updatedData.achievements.push(...items);
-      } else {
-        // Personal section
-        updatedData[section] = updatedData[section] || {};
-        updatedData[section][field] = value;
-      }
+    // Move to next field in current section
+    if (currentIndex < fields.length - 1) {
+      const nextField = fields[currentIndex + 1];
+      return {
+        section: currentSection,
+        field: nextField,
+        arrayIndex: 0,
+        question: QUESTION_TEMPLATES[currentSection][nextField]
+      };
     }
 
-    // Generate next question
-    const nextQ = await this.generateNextQuestion(updatedData, conversationHistory, false, state);
+    // Move to next section
+    const sections = Object.keys(RESUME_SCHEMA);
+    const sectionIndex = sections.indexOf(currentSection);
 
+    if (sectionIndex < sections.length - 1) {
+      const nextSection = sections[sectionIndex + 1];
+      const firstField = RESUME_SCHEMA[nextSection].fields[0];
+      return {
+        section: nextSection,
+        field: firstField,
+        arrayIndex: 0,
+        question: QUESTION_TEMPLATES[nextSection][firstField]
+      };
+    }
+
+    // All done!
     return {
-      updatedData,
-      extractedFields: extraction.extracted_fields,
-      nextQuestion: nextQ.message,
-      nextSection: nextQ.nextSection,
-      nextField: nextQ.nextField,
-      arrayIndex: nextQ.arrayIndex,
-      isComplete: nextQ.isComplete,
-      pendingArrayAddition: nextQ.pendingArrayAddition || false
+      section: "complete",
+      field: "complete",
+      arrayIndex: 0,
+      question: "🎉 Congratulations! Your resume is complete. You can now download it or make any edits!"
     };
   }
 
-  // ------------------------------------------------------------------
-  // TARGETED UPDATE (For editing specific sections)
-  // ------------------------------------------------------------------
-  async updateSpecificData(updateRequest, currentData) {
-    const tools = [{
-      type: "function",
-      function: {
-        name: "update_resume_data",
-        description: "Update specific resume fields based on user request",
-        parameters: {
-          type: "object",
-          properties: {
-            updates: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  section: { type: "string" },
-                  field: { type: "string" },
-                  value: { type: "string" },
-                  arrayIndex: { type: "number" },
-                  action: {
-                    type: "string",
-                    enum: ["update", "add", "delete"]
-                  }
-                },
-                required: ["section", "field", "value", "action"]
-              }
-            }
-          },
-          required: ["updates"]
-        }
-      }
-    }];
+  // ─────────────────────────────────────────────────────────────────
+  // PROCESS USER MESSAGE
+  // ─────────────────────────────────────────────────────────────────
+  async processMessage(userMessage, currentState, resumeData) {
+    const { currentSection, currentField, currentArrayIndex } = currentState;
 
-    const prompt = `Parse this update request: "${updateRequest}"
+    // Handle "addMore" response
+    if (currentField === "addMore") {
+      const isYes = /^(yes|yeah|yep|sure|ok|okay|y)$/i.test(userMessage.trim());
 
-Current data: ${JSON.stringify(currentData, null, 2)}
+      if (isYes) {
+        // Create NEW empty entry in array
+        const newEntry = {};
+        resumeData[currentSection].push(newEntry);
 
-Extract what needs to be updated, added, or deleted.`;
-
-    try {
-      const messages = [
-        { role: "system", content: "You are a resume data update parser." },
-        { role: "user", content: prompt }
-      ];
-
-      const response = await this.callGroq(messages, tools, "required");
-
-      if (response.tool_calls?.[0]) {
-        const updates = JSON.parse(response.tool_calls[0].function.arguments);
-        const updatedData = JSON.parse(JSON.stringify(currentData));
-
-        for (const update of updates.updates) {
-          const { section, field, value, arrayIndex, action } = update;
-
-          if (action === "update") {
-            if (arrayIndex !== undefined && Array.isArray(updatedData[section])) {
-              updatedData[section][arrayIndex][field] = value;
-            } else {
-              updatedData[section][field] = value;
-            }
-          }
-          // Add more action handlers as needed
-        }
+        // Move to first field of new entry
+        const firstField = RESUME_SCHEMA[currentSection].fields[0];
+        const newIndex = resumeData[currentSection].length - 1;
 
         return {
-          updatedData,
-          extractedFields: updates.updates,
-          message: "Updated successfully!"
+          resumeData,
+          nextQuestion: QUESTION_TEMPLATES[currentSection][firstField],
+          nextSection: currentSection,
+          nextField: firstField,
+          nextArrayIndex: newIndex,
+          extracted: null
+        };
+      } else {
+        // Move to next section
+        const next = this.getNextField(currentSection, currentField, resumeData);
+        return {
+          resumeData,
+          nextQuestion: next.question,
+          nextSection: next.section,
+          nextField: next.field,
+          nextArrayIndex: next.arrayIndex,
+          extracted: null
         };
       }
-
-      return { updatedData: currentData, extractedFields: [], message: "No updates found" };
-    } catch (error) {
-      console.error("❌ Update failed:", error.message);
-      return { updatedData: currentData, extractedFields: [], message: "Update failed" };
     }
+
+    // Extract data from message
+    const extraction = await this.extractData(
+      userMessage,
+      currentField,
+      currentSection,
+      currentArrayIndex
+    );
+
+    // Update resume data
+    if (!extraction.skip) {
+      const schema = RESUME_SCHEMA[currentSection];
+
+      if (schema.type === "array") {
+        // Ensure array and entry exist
+        if (!resumeData[currentSection]) {
+          resumeData[currentSection] = [];
+        }
+
+        // Ensure we have an entry at the current index
+        while (resumeData[currentSection].length <= currentArrayIndex) {
+          resumeData[currentSection].push({});
+        }
+
+        resumeData[currentSection][currentArrayIndex][currentField] = extraction.value;
+      } else if (schema.type === "object") {
+        if (!resumeData[currentSection]) {
+          resumeData[currentSection] = {};
+        }
+        resumeData[currentSection][currentField] = extraction.value;
+      }
+    }
+
+    // Get next question
+    const next = this.getNextField(currentSection, currentField, resumeData);
+
+    return {
+      resumeData,
+      nextQuestion: next.question,
+      nextSection: next.section,
+      nextField: next.field,
+      nextArrayIndex: next.arrayIndex || 0,
+      extracted: extraction.skip ? null : extraction.value
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // START CONVERSATION
+  // ─────────────────────────────────────────────────────────────────
+  startConversation() {
+    return {
+      question: QUESTION_TEMPLATES.personal.name,
+      section: "personal",
+      field: "name",
+      arrayIndex: 0
+    };
   }
 }
 
-// ====================================================================
-// EXPORT
-// ====================================================================
-
-export const createAgent = (apiKey) => new ResumeAgentV2(apiKey);
+// ═══════════════════════════════════════════════════════════════════
+// EXPORTS
+// ═══════════════════════════════════════════════════════════════════
+export const createAgent = (apiKey) => new IntelligentResumeAgent(apiKey);
+export const getMockPreviewData = () => JSON.parse(JSON.stringify(MOCK_PREVIEW_DATA));
+export { RESUME_SCHEMA };

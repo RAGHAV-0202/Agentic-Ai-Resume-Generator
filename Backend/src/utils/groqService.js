@@ -1,29 +1,13 @@
-/**
- * ====================================================================
- * GROQ SERVICE V2 - UTILITY FUNCTIONS
- * ====================================================================
- * 
- * This module provides utility functions that complement the main
- * agent system. It handles mock data cleaning, skip detection, and
- * other helper functions.
- */
-
 import fetch from "node-fetch";
 
-// ====================================================================
-// CONSTANTS
-// ====================================================================
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 // Validated models that work with Groq
 const VALIDATED_GROQ_MODELS = [
   "llama-3.3-70b-versatile",
-  "llama-3.1-70b-versatile",
   "llama-3.1-8b-instant",
-  "mixtral-8x7b-32768",
-  "gemma2-9b-it"
-];
+]; // only these 2 are available 
 
 // Mock data patterns to detect and remove
 const MOCK_PATTERNS = [

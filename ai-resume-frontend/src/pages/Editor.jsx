@@ -72,32 +72,45 @@ const Editor = () => {
         if (id) fetchData();
     }, [id, navigate]);
 
-    // Start conversation if not started
+    // Check for existing conversation on load
     useEffect(() => {
-        const initChat = async () => {
-            console.log(messages.length, conversationStarted)
-            if (!loading && messages.length === 0) {
-                try {
-                    const startRes = await StartAgentChat({ resumeId: id });
-                    if (startRes.data?.data?.aiMessage) {
-                        setMessages([{
-                            role: 'assistant',
-                            content: startRes.data.data.aiMessage
-                        }]);
-                        setConversationStarted(true);
-                    }
-                } catch (error) {
-                    console.error("Error starting chat:", error);
-                }
-            }
-        };
-        initChat();
-    }, [loading, conversationStarted, messages.length, id]);
+        if (messages.length > 0) {
+            setConversationStarted(true);
+        } else if (!loading) {
+            // New session: don't start chat automatically.
+            // Just ensure we have resumeData (which might be mock data from createResume)
+            setConversationStarted(false);
+        }
+    }, [messages.length, loading]);
 
     // Auto-scroll chat
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    const handleStartChat = async () => {
+        if (chatLoading) return;
+        setChatLoading(true);
+        try {
+            const startRes = await StartAgentChat({ resumeId: id });
+            if (startRes.data?.data?.aiMessage) {
+                setMessages([{
+                    role: 'assistant',
+                    content: startRes.data.data.aiMessage
+                }]);
+                setConversationStarted(true);
+                // Also update resume data to clean state (cleared mock data)
+                if (startRes.data?.data?.resumeData) {
+                    setResumeData(startRes.data.data.resumeData);
+                }
+            }
+        } catch (error) {
+            console.error("Error starting chat:", error);
+            alert("Failed to start conversation");
+        } finally {
+            setChatLoading(false);
+        }
+    };
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -338,12 +351,23 @@ const Editor = () => {
 
                     {/* Chat Messages */}
                     <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                        {messages.length === 0 && (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-60">
-                                <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-white rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-slate-100 transform rotate-3">
-                                    <Bot size={32} className="text-slate-400" />
+                        {messages.length === 0 && !conversationStarted && (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                                <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20 transform rotate-3">
+                                    <Bot size={32} className="text-white" />
                                 </div>
-                                <p className="text-slate-500 font-medium">Start the conversation to build your resume.</p>
+                                <h3 className="text-xl font-bold text-slate-800 mb-2">Resume Preview</h3>
+                                <p className="text-slate-500 font-medium mb-8 max-w-[260px]">
+                                    This is a preview with sample data. Ready to build your own?
+                                </p>
+                                <button
+                                    onClick={handleStartChat}
+                                    disabled={chatLoading}
+                                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center gap-2"
+                                >
+                                    {chatLoading ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
+                                    Start Building
+                                </button>
                             </div>
                         )}
 
