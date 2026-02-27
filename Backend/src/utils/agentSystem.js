@@ -227,25 +227,112 @@ Be conversational, encouraging, and specific.`,
 ];
 
 // ═══════════════════════════════════════════════════════════════════
+// SECTION ORDER & FOCUS COMPUTATION
+// ═══════════════════════════════════════════════════════════════════
+
+const SECTION_ORDER = ["personal", "education", "experience", "projects", "skills", "achievements", "publications"];
+
+/**
+ * Compute the next field/section the agent should ask about.
+ * Follows strict section order: personal → education → experience → projects → skills → achievements → publications
+ * Within each section, goes through ALL fields (required + optional) before offering "add more" or moving on.
+ */
+const computeCurrentFocus = (resumeData) => {
+  for (const section of SECTION_ORDER) {
+    const schema = RESUME_SCHEMA[section];
+    if (!schema) continue;
+
+    if (section === "achievements") {
+      const achievements = resumeData?.achievements || [];
+      if (achievements.length === 0) {
+        return { section: "achievements", field: "list", arrayIndex: 0, askAddMore: false };
+      }
+      continue; // achievements filled, move on
+    }
+
+    if (schema.type === "object") {
+      // personal, skills — check each field in order
+      for (const field of schema.fields) {
+        const val = resumeData?.[section]?.[field];
+        if (!val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0)) {
+          return { section, field, arrayIndex: 0, askAddMore: false };
+        }
+      }
+      continue; // all fields filled, move to next section
+    }
+
+    if (schema.type === "array") {
+      // education, experience, projects, publications
+      const entries = resumeData?.[section] || [];
+      const validEntries = entries.filter(e => {
+        if (!e || typeof e !== "object") return false;
+        const firstReq = schema.required[0];
+        return firstReq && e[firstReq] && String(e[firstReq]).trim() !== "";
+      });
+
+      if (validEntries.length === 0) {
+        // No entries yet — ask for the first field of a new entry
+        return { section, field: schema.fields[0], arrayIndex: 0, askAddMore: false };
+      }
+
+      // Check if the LAST entry has all fields filled
+      const lastIdx = entries.length - 1;
+      const lastEntry = entries[lastIdx];
+      for (const field of schema.fields) {
+        const val = lastEntry?.[field];
+        const isEmpty = !val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0);
+        if (isEmpty) {
+          return { section, field, arrayIndex: lastIdx, askAddMore: false };
+        }
+      }
+
+      // Last entry is complete — ask "add more?"
+      return { section, field: "addMore", arrayIndex: lastIdx, askAddMore: true };
+    }
+  }
+
+  // All sections complete
+  return { section: "complete", field: "complete", arrayIndex: 0, askAddMore: false };
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // SYSTEM PROMPT
 // ═══════════════════════════════════════════════════════════════════
 
-const buildSystemPrompt = (resumeData, missingFields) => {
+const buildSystemPrompt = (resumeData, missingFields, currentFocus) => {
   const missingFieldsSummary = missingFields.length > 0
     ? missingFields.map(f => `- ${f.section}.${f.field} ${f.required ? "(REQUIRED)" : "(optional)"}: ${f.description}`).join("\n")
     : "All required fields are filled! Check if user wants to add more or make edits.";
 
+  const focusInstruction = currentFocus.section === "complete"
+    ? "ALL SECTIONS COMPLETE — congratulate the user and ask if they want to make any edits."
+    : currentFocus.askAddMore
+      ? `ASK: "Would you like to add another ${currentFocus.section.replace(/s$/, '')}?" — If they say yes, start a new entry. If no, move to the next section.`
+      : `ASK ABOUT: ${currentFocus.section}.${currentFocus.field} (array index: ${currentFocus.arrayIndex})`;
+
   return `You are "ResumeAI", an expert career coach and AI resume assistant. You help users build professional, ATS-optimized resumes through natural conversation.
+
+## CRITICAL: SECTION PROGRESSION ORDER
+You MUST follow this strict section order when asking questions:
+  personal → education → experience → projects → skills → achievements → publications
+
+Rules:
+- **Complete each section fully** before moving to the next. Ask about ALL fields in a section (both required AND optional) before moving on.
+- For optional fields (like GPA, LinkedIn, GitHub, website), ASK the user — don't skip them. They can say "skip" if they want.
+- For array sections (education, experience, projects, publications): after completing all fields for an entry, ALWAYS ask "Would you like to add another [entry type]?" before moving to the next section.
+- NEVER jump ahead to a later section while there are unfilled fields in the current section.
+
+## CURRENT FOCUS (Your next question MUST be about this)
+${focusInstruction}
 
 ## YOUR BEHAVIOR
 1. **Extract everything** — If a user gives multiple pieces of info in one message, extract ALL of them using update_resume_fields. Don't ignore data just because you didn't ask for it.
-2. **Accept out-of-order input** — If you asked about LinkedIn but the user talks about their work experience, capture the experience data anyway. Don't force them back to LinkedIn.
+2. **Accept out-of-order input** — If you asked about LinkedIn but the user talks about their work experience, capture the experience data anyway. BUT THEN return to asking about LinkedIn (the current focus).
 3. **Handle updates** — If the user says "change my email to X" or "update my name", update the field immediately.
-4. **Handle skips** — If the user says "skip", "pass", "no", "don't have one", move to the next field/section. DON'T call update_resume_fields for skipped fields.
-5. **Be conversational** — Acknowledge what you captured, provide encouragement, and ask natural follow-up questions.
+4. **Handle skips** — If the user says "skip", "pass", "no", "don't have one", move to the NEXT field in the current section (not a random section). DON'T call update_resume_fields for skipped fields.
+5. **Be conversational** — Briefly acknowledge what you captured, then ask the next question. Keep responses short (1-2 sentences + question).
 6. **ATS optimization** — For experience/project highlights, enhance weak descriptions with strong action verbs (Developed, Engineered, Spearheaded, Optimized, etc.) and quantifiable metrics when possible. But keep the user's original meaning.
-7. **Smart questioning** — Focus on REQUIRED missing fields first, then optional ones. Don't re-ask fields already filled.
-8. **Completion** — Mark isComplete=true ONLY when these are all filled: personal (name, email, phone), at least 1 education entry, at least 1 experience OR project, and skills (languages + technologies).
+7. **Completion** — Mark isComplete=true ONLY when these are all filled: personal (name, email, phone), at least 1 education entry with required fields, at least 1 experience OR project with required fields, and skills (languages + technologies).
 
 ## RESUME SCHEMA
 ${JSON.stringify(RESUME_SCHEMA, null, 2)}
@@ -253,12 +340,13 @@ ${JSON.stringify(RESUME_SCHEMA, null, 2)}
 ## CURRENT RESUME DATA
 ${JSON.stringify(resumeData, null, 2)}
 
-## MISSING FIELDS
+## MISSING FIELDS (for reference only — follow CURRENT FOCUS above for question order)
 ${missingFieldsSummary}
 
 ## TOOL USAGE
 - ALWAYS call generate_response to produce your reply.
 - Call update_resume_fields BEFORE generate_response if the user provided any data.
+- In generate_response, set nextSection and nextField to match CURRENT FOCUS (or the next focus if current was just completed).
 - For array sections (education, experience, projects, publications), use arrayIndex to target the right entry. Use 0 for the first entry, 1 for the second, etc. Use -1 to add a NEW entry.
 - For skills.languages and skills.technologies, provide arrays of strings.
 - For achievements, use section="achievements", field="list", value=[array of achievement strings].
@@ -266,8 +354,7 @@ ${missingFieldsSummary}
 ## IMPORTANT RULES
 - NEVER invent or hallucinate data. Only save what the user explicitly provides.
 - NEVER ask for a field that's already filled unless the user wants to update it.
-- When asking "would you like to add more?", if user says no, move to the next section.
-- Keep your messages concise but friendly. Use emojis sparingly.`;
+- Keep your messages concise but friendly. Use emojis sparingly (max 1 per message).`;
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -456,8 +543,9 @@ class AgenticResumeAgent {
   // ─────────────────────────────────────────────────────────────────
   async processMessage(userMessage, resumeData, conversationHistory = []) {
     const missingFields = this.analyzeMissingFields(resumeData);
+    const currentFocus = computeCurrentFocus(resumeData);
 
-    const systemPrompt = buildSystemPrompt(resumeData, missingFields);
+    const systemPrompt = buildSystemPrompt(resumeData, missingFields, currentFocus);
 
     // Build messages for LLM
     const messages = [
@@ -489,9 +577,9 @@ class AgenticResumeAgent {
     let extractedFields = [];
     let updatedData = { ...resumeData };
     let nextQuestion = "";
-    let nextSection = "personal";
-    let nextField = "name";
-    let isComplete = false;
+    let nextSection = currentFocus.section;
+    let nextField = currentFocus.field;
+    let isComplete = currentFocus.section === "complete";
     let wasUpdate = false;
 
     if (response.tool_calls && response.tool_calls.length > 0) {
@@ -539,6 +627,14 @@ class AgenticResumeAgent {
         }
       }
 
+      // Recompute focus after updates were applied
+      if (wasUpdate) {
+        const newFocus = computeCurrentFocus(updatedData);
+        nextSection = newFocus.section;
+        nextField = newFocus.field;
+        isComplete = newFocus.section === "complete";
+      }
+
       // If we got updates but no generate_response, do a follow-up call
       if (wasUpdate && !nextQuestion) {
         try {
@@ -555,8 +651,8 @@ class AgenticResumeAgent {
               if (tc.function.name === "generate_response") {
                 const fArgs = JSON.parse(tc.function.arguments);
                 nextQuestion = fArgs.message || "";
-                nextSection = fArgs.nextSection || "personal";
-                nextField = fArgs.nextField || "name";
+                nextSection = fArgs.nextSection || nextSection;
+                nextField = fArgs.nextField || nextField;
                 isComplete = fArgs.isComplete || false;
               }
             }
