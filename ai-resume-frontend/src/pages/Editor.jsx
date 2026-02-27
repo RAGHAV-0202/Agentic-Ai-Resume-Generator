@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight, Sparkles, MessageSquare, PenLine, ChevronDown, Target, Zap } from 'lucide-react';
 import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate, UpdateResumeData } from '../services/resume.api';
+import { baseURL } from '../services/http';
 import { StartAgentChat, MsgAgent, SkipAgentQuestion } from '../services/agent.api';
 import { getAllTemplates } from '../services/template.api';
 import { GridScan } from '../components/ui/gridScan';
@@ -184,7 +185,7 @@ const Editor = () => {
         try {
             const res = await RecompilePdf(id);
             if (res.data?.data?.pdfUrl) {
-                setPdfUrl(res.data.data.pdfUrl);
+                setPdfUrl(baseURL + res.data.data.pdfUrl);
                 setPdfTimestamp(Date.now());
             }
         } catch (error) {
@@ -208,7 +209,7 @@ const Editor = () => {
         try {
             const res = await ChangeTemplate({ id, templateId });
             if (res.data?.data?.resume?.pdfUrl) {
-                setPdfUrl(res.data.data.resume.pdfUrl);
+                setPdfUrl(baseURL + res.data.data.resume.pdfUrl);
                 setPdfTimestamp(Date.now());
                 setPdfLoading(true);
             }
@@ -226,7 +227,7 @@ const Editor = () => {
                 if (data.resume?.data) setResumeData(data.resume.data);
                 if (data.qualityScore) setQualityScore(data.qualityScore);
                 if (data.pdfUrl) {
-                    setPdfUrl(data.pdfUrl);
+                    setPdfUrl(baseURL + data.pdfUrl);
                     setPdfTimestamp(Date.now());
                     setPdfLoading(true);
                 }
@@ -387,8 +388,8 @@ const Editor = () => {
                             <button
                                 onClick={() => setEditorMode('chat')}
                                 className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${editorMode === 'chat'
-                                        ? 'bg-white text-slate-800 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 <MessageSquare size={14} /> AI Chat
@@ -396,8 +397,8 @@ const Editor = () => {
                             <button
                                 onClick={() => setEditorMode('edit')}
                                 className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${editorMode === 'edit'
-                                        ? 'bg-white text-slate-800 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 <PenLine size={14} /> Direct Edit
@@ -428,7 +429,7 @@ const Editor = () => {
                                         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                             <div
                                                 className={`h-full rounded-full transition-all duration-500 ${(cat.score / cat.maxScore) >= 0.8 ? 'bg-emerald-500' :
-                                                        (cat.score / cat.maxScore) >= 0.5 ? 'bg-amber-500' : 'bg-red-400'
+                                                    (cat.score / cat.maxScore) >= 0.5 ? 'bg-amber-500' : 'bg-red-400'
                                                     }`}
                                                 style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
                                             />
