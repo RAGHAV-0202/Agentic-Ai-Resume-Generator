@@ -1,5 +1,5 @@
 const escapeLatex = (text) => {
-  if (!text || text === "__SKIPPED__" || text === "skip") return "";
+  if (!text || text === "__SKIPPED__" || text === "_skipped" || text === "skip") return "";
 
   const replacements = {
     "\\": "\\textbackslash{}",
@@ -17,7 +17,7 @@ const escapeLatex = (text) => {
   let escaped = text.toString().trim();
 
   // Double check again after trim (though probably redundant)
-  if (escaped === "__SKIPPED__") return "";
+  if (escaped === "__SKIPPED__" || escaped === "_skipped") return "";
 
   // First escape backslash, then others
   escaped = escaped.replace(/\\/g, replacements["\\"]);
@@ -174,7 +174,7 @@ const populateEducation = (latex, educationArray) => {
     block = block.replace(/{{END_DATE}}/g, escapeLatex(edu.endDate || ""));
 
     // Handle GPA conditional
-    if (edu.gpa && edu.gpa.trim() !== "") {
+    if (edu.gpa && edu.gpa.trim() !== "" && edu.gpa !== "_skipped") {
       block = block.replace(/{{#IF_GPA}}/g, "");
       block = block.replace(/{{\/IF_GPA}}/g, "");
       block = block.replace(/{{GPA}}/g, escapeLatex(edu.gpa));
@@ -183,10 +183,11 @@ const populateEducation = (latex, educationArray) => {
     }
 
     // Handle coursework conditional
-    if (edu.coursework && edu.coursework.length > 0) {
+    const courseworkFiltered = (edu.coursework || []).filter(c => c && c !== "_skipped");
+    if (courseworkFiltered.length > 0) {
       block = block.replace(/{{#IF_COURSEWORK}}/g, "");
       block = block.replace(/{{\/IF_COURSEWORK}}/g, "");
-      const courseworkText = edu.coursework.map(c => escapeLatex(c)).join(", ");
+      const courseworkText = courseworkFiltered.map(c => escapeLatex(c)).join(", ");
       block = block.replace(/{{COURSEWORK}}/g, courseworkText);
     } else {
       block = block.replace(/{{#IF_COURSEWORK}}[\s\S]*?{{\/IF_COURSEWORK}}/g, "");
@@ -277,7 +278,7 @@ const populateProjects = (latex, projectsArray) => {
     block = block.replace(/{{DATE}}/g, escapeLatex(project.date || ""));
 
     // Handle link conditional
-    if (project.link && project.link.trim() !== "") {
+    if (project.link && project.link.trim() !== "" && project.link !== "_skipped") {
       block = block.replace(/{{#IF_LINK}}/g, "");
       block = block.replace(/{{\/IF_LINK}}/g, "");
       block = block.replace(/{{LINK}}/g, escapeLatex(project.link));
@@ -291,7 +292,7 @@ const populateProjects = (latex, projectsArray) => {
 
     if (highlightsMatch && project.highlights && project.highlights.length > 0) {
       let highlightsLatex = "";
-      project.highlights.forEach((highlight) => {
+      project.highlights.filter(h => h && h !== "_skipped").forEach((highlight) => {
         highlightsLatex += `                \\item ${escapeLatex(highlight)}\n`;
       });
       block = block.replace(highlightsRegex, highlightsLatex);
@@ -300,10 +301,11 @@ const populateProjects = (latex, projectsArray) => {
     }
 
     // Handle technologies conditional
-    if (project.technologies && project.technologies.length > 0) {
+    const techFiltered = (project.technologies || []).filter(t => t && t !== "_skipped");
+    if (techFiltered.length > 0) {
       block = block.replace(/{{#IF_TECHNOLOGIES}}/g, "");
       block = block.replace(/{{\/IF_TECHNOLOGIES}}/g, "");
-      const techText = project.technologies.map(t => escapeLatex(t)).join(", ");
+      const techText = techFiltered.map(t => escapeLatex(t)).join(", ");
       block = block.replace(/{{TECHNOLOGIES}}/g, techText);
     } else {
       block = block.replace(/{{#IF_TECHNOLOGIES}}[\s\S]*?{{\/IF_TECHNOLOGIES}}/g, "");

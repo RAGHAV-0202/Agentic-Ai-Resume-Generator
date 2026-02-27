@@ -23,10 +23,9 @@ import fetch from "node-fetch";
 // ═══════════════════════════════════════════════════════════════════
 const GROQ_MODELS = [
   "openai/gpt-oss-120b",                          // Primary — 30 req/min, 8K tok/min
-  "groq/compound",                                 // Fallback 1 — 30 req/min, 70K tok/min, great reasoning
-  "llama-3.3-70b-versatile",                       // Fallback 2 — 30 req/min, 12K tok/min
-  "meta-llama/llama-4-scout-17b-16e-instruct",     // Fallback 3 — 30 req/min, 30K tok/min
-  "qwen/qwen3-32b",                                // Fallback 4 — 60 req/min, 6K tok/min
+  "llama-3.3-70b-versatile",                       // Fallback 1 — 30 req/min, 12K tok/min
+  "meta-llama/llama-4-scout-17b-16e-instruct",     // Fallback 2 — 30 req/min, 30K tok/min
+  "qwen/qwen3-32b",                                // Fallback 3 — 60 req/min, 6K tok/min
 ];
 
 // Dynamic model selection — remembers last working model
@@ -438,6 +437,8 @@ ${missingFieldsSummary}
 ## IMPORTANT RULES
 - NEVER invent or hallucinate data. Only save what the user explicitly provides.
 - NEVER ask for a field that's already filled unless the user wants to update it.
+- If the user gives a META INSTRUCTION like "add yourself 2 points", "write something good", "fill this yourself", do NOT save those words as resume content. Instead, generate professional, ATS-optimized bullet points based on the project/experience context (title, technologies, etc.) and save THOSE.
+- NEVER save the literal text "_skipped", "skip", or "no" as field values.
 - Keep your messages concise but friendly. Use emojis sparingly (max 1 per message).`;
 };
 
