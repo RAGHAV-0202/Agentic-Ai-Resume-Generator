@@ -23,24 +23,44 @@ import fetch from "node-fetch";
 // ═══════════════════════════════════════════════════════════════════
 const GROQ_MODELS = [
   "openai/gpt-oss-120b",                          // Primary — 30 req/min, 8K tok/min
-  "groq/compound",                                 // Fallback 2 — 30 req/min, 70K tok/min, great reasoning
-  "llama-3.3-70b-versatile",                       // Fallback 1 — 30 req/min, 12K tok/min
+  "groq/compound",                                 // Fallback 1 — 30 req/min, 70K tok/min, great reasoning
+  "llama-3.3-70b-versatile",                       // Fallback 2 — 30 req/min, 12K tok/min
   "meta-llama/llama-4-scout-17b-16e-instruct",     // Fallback 3 — 30 req/min, 30K tok/min
   "qwen/qwen3-32b",                                // Fallback 4 — 60 req/min, 6K tok/min
 ];
 
-// Track per-model cooldowns (reset after 60s)
-const modelCooldowns = {};
-const getAvailableModel = () => {
+// Dynamic model selection — remembers last working model
+const modelState = {
+  cooldowns: {},         // model → timestamp when cooldown expires
+  preferredIndex: 0,     // index of last successful model
+};
+
+/**
+ * Get models to try, starting from the preferred (last successful) one.
+ * Skips models still on cooldown. Returns to primary once its cooldown expires.
+ */
+const getModelOrder = () => {
   const now = Date.now();
-  for (const model of GROQ_MODELS) {
-    const cooldownUntil = modelCooldowns[model] || 0;
-    if (now >= cooldownUntil) return model;
+
+  // If primary model's cooldown expired, reset to it
+  if (!modelState.cooldowns[GROQ_MODELS[0]] || now >= modelState.cooldowns[GROQ_MODELS[0]]) {
+    modelState.preferredIndex = 0;
   }
-  // All rate-limited — use the one with the soonest cooldown
-  return GROQ_MODELS.reduce((best, m) =>
-    (modelCooldowns[m] || 0) < (modelCooldowns[best] || 0) ? m : best
-  );
+
+  // Build ordered list: preferred first, then wrap around
+  const ordered = [];
+  for (let i = 0; i < GROQ_MODELS.length; i++) {
+    const idx = (modelState.preferredIndex + i) % GROQ_MODELS.length;
+    const model = GROQ_MODELS[idx];
+    const cooldownUntil = modelState.cooldowns[model] || 0;
+    if (now >= cooldownUntil) {
+      ordered.push(model);
+    } else {
+      console.log(`⏳ ${model} on cooldown (${Math.ceil((cooldownUntil - now) / 1000)}s left)`);
+    }
+  }
+
+  return ordered;
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -435,15 +455,21 @@ class AgenticResumeAgent {
   // GROQ API CALL (with tool support)
   // ─────────────────────────────────────────────────────────────────
   async callGroq(messages, tools = null, toolChoice = "auto") {
+    const modelsToTry = getModelOrder();
     let lastError;
 
-    for (const model of GROQ_MODELS) {
-      // Skip models on cooldown
-      if (modelCooldowns[model] && Date.now() < modelCooldowns[model]) {
-        console.log(`⏳ Skipping ${model} (rate-limited until ${new Date(modelCooldowns[model]).toLocaleTimeString()})`);
-        continue;
-      }
+    if (modelsToTry.length === 0) {
+      // All models on cooldown — wait for the shortest one
+      const soonest = GROQ_MODELS.reduce((best, m) =>
+        (modelState.cooldowns[m] || 0) < (modelState.cooldowns[best] || 0) ? m : best
+      );
+      const waitMs = Math.max(0, (modelState.cooldowns[soonest] || 0) - Date.now());
+      console.log(`⏳ All models on cooldown. Waiting ${Math.ceil(waitMs / 1000)}s for ${soonest}...`);
+      await new Promise(r => setTimeout(r, waitMs + 500));
+      modelsToTry.push(soonest);
+    }
 
+    for (const model of modelsToTry) {
       try {
         const payload = {
           model,
@@ -468,16 +494,14 @@ class AgenticResumeAgent {
         });
 
         if (response.status === 429) {
-          // Rate limited — cooldown this model for 60s and try next
-          modelCooldowns[model] = Date.now() + 60_000;
-          console.warn(`⚠️ Rate limited on ${model}, cooling down 60s. Trying next model...`);
+          modelState.cooldowns[model] = Date.now() + 60_000;
+          console.warn(`⚠️ Rate limited on ${model}, cooling down 60s. Trying next...`);
           lastError = new Error(`Rate limited on ${model}`);
           continue;
         }
 
         if (!response.ok) {
           const errBody = await response.text();
-          // If model doesn't support tools (e.g. compound), skip to next
           if (response.status === 400 && errBody.includes("tool")) {
             console.warn(`⚠️ ${model} doesn't support tool calling, trying next...`);
             lastError = new Error(`${model} tool support error`);
@@ -487,15 +511,19 @@ class AgenticResumeAgent {
         }
 
         const data = await response.json();
+
+        // Success! Remember this model as preferred
+        const successIdx = GROQ_MODELS.indexOf(model);
+        if (successIdx >= 0) modelState.preferredIndex = successIdx;
+        console.log(`✅ Success with ${model}`);
+
         return data.choices[0].message;
       } catch (error) {
         console.error(`❌ ${model} failed:`, error.message);
         lastError = error;
-        // Continue to next model
       }
     }
 
-    // All models failed
     throw lastError || new Error("All models failed");
   }
 
