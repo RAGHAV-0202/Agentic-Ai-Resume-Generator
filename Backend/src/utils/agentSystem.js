@@ -22,8 +22,10 @@ import fetch from "node-fetch";
 // GROQ CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
 const GROQ_MODELS = [
-  "openai/gpt-oss-120b",      // Primary — OpenAI GPT OSS 120B (30 req/min, 8K tok/min)
-  "llama-3.3-70b-versatile",   // Fallback — Meta Llama 3.3 70B (30 req/min, 12K tok/min)
+  "openai/gpt-oss-120b",      // Primary — OpenAI GPT OSS 120B
+  "llama-3.3-70b-versatile",   // Fallback 1 — Meta Llama 3.3 70B
+  "groq/compound",             // Fallback 2 — Groq Compound
+  "qwen/qwen3-32b",            // Fallback 3 — Qwen3 32B
 ];
 
 let modelIndex = 0;
@@ -262,7 +264,8 @@ const computeCurrentFocus = (resumeData, minSection = "personal") => {
       // personal, skills — check each field in order
       for (const field of schema.fields) {
         const val = resumeData?.[section]?.[field];
-        if (!val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0)) {
+        const isSkipped = val === "_skipped";
+        if (!isSkipped && (!val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0))) {
           return { section, field, arrayIndex: 0, askAddMore: false };
         }
       }
