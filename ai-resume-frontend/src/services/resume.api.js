@@ -12,12 +12,12 @@ export const GetResumeById = (id) => {
     return api.get(`/api/resume/${id}`)
 }
 
-export const DeleteResume = (id) => { 
+export const DeleteResume = (id) => {
     return api.delete(`/api/resume/${id}`)
 }
 
-export const ChangeTemplate = ({id , templateId}) => {
-    return api.put(`/api/resume/${id}/template` , {templateId})
+export const ChangeTemplate = ({ id, templateId }) => {
+    return api.put(`/api/resume/${id}/template`, { templateId })
 }
 
 export const StartChat = (data) => {
@@ -37,8 +37,12 @@ export const RecompilePdf = (resumeId) => { // ✅ NEW - for manual recompile
     return api.post(`/api/pdf/recompile/${resumeId}`)
 }
 
-export const DownloadPdf = async(resumeId) => { // ✅ NEW - for download
+export const DownloadPdf = async (resumeId) => { // ✅ NEW - for download
     const response = await api.post(`/api/pdf/recompile/${resumeId}`, {
     })
-    return baseURL+response.data.data.pdfUrl
+    return baseURL + response.data.data.pdfUrl
+}
+
+export const UpdateResumeData = (id, data) => {
+    return api.patch(`/api/resume/${id}/data`, { data })
 }

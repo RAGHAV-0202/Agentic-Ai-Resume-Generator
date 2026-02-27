@@ -140,7 +140,8 @@ const handleConditionals = (latex, data) => {
     (data.skills?.languages && data.skills.languages.length > 0) ||
     (data.skills?.frameworks && data.skills.frameworks.length > 0) ||
     (data.skills?.developerTools && data.skills.developerTools.length > 0) ||
-    (data.skills?.libraries && data.skills.libraries.length > 0)
+    (data.skills?.libraries && data.skills.libraries.length > 0) ||
+    (data.skills?.technologies && data.skills.technologies.length > 0)
   ) {
     result = result.replace(/{{#IF_SKILLS}}/g, "");
     result = result.replace(/{{\/IF_SKILLS}}/g, "");
@@ -363,6 +364,16 @@ const populateSkills = (latex, skills) => {
     result = result.replace(/{{LIBRARIES}}/g, librariesText);
   } else {
     result = result.replace(/{{#IF_LIBRARIES}}[\s\S]*?{{\/IF_LIBRARIES}}/g, "");
+  }
+
+  // Technologies (general — maps to {{TECHNOLOGIES_SKILLS}} at section level)
+  if (skills.technologies && skills.technologies.length > 0) {
+    result = result.replace(/{{#IF_TECHNOLOGIES_SKILLS}}/g, "");
+    result = result.replace(/{{\/IF_TECHNOLOGIES_SKILLS}}/g, "");
+    const techText = skills.technologies.map(t => escapeLatex(t)).join(", ");
+    result = result.replace(/{{TECHNOLOGIES_SKILLS}}/g, techText);
+  } else {
+    result = result.replace(/{{#IF_TECHNOLOGIES_SKILLS}}[\s\S]*?{{\/IF_TECHNOLOGIES_SKILLS}}/g, "");
   }
 
   return result;

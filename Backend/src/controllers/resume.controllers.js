@@ -6,7 +6,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import Template from "../models/Template.model.js";
 import { generateLatex } from "../utils/LatexGenerator.js";
 import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
-import { getMockPreviewData } from "../utils/agentSystem.js";
+import { getMockPreviewData, scoreResume } from "../utils/agentSystem.js";
 
 
 export const createResumeWithPreview = asyncHandler(async (req, res) => {
@@ -294,5 +294,69 @@ export const getResumeStatus = asyncHandler(async (req, res) => {
           resume.data.skills?.technologies?.length > 0),
       },
     }, "Resume status fetched successfully")
+  );
+});
+
+
+// ====================================================================
+// DIRECT EDIT — Update resume data fields
+// ====================================================================
+export const updateResumeData = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { data } = req.body;
+  const userId = req.user._id;
+
+  if (!data || typeof data !== "object") {
+    throw new ApiError(400, "data object is required");
+  }
+
+  const resume = await Resume.findOne({ _id: id, userId }).populate("templateId");
+  if (!resume) {
+    throw new ApiError(404, "Resume not found or unauthorized");
+  }
+
+  // Deep merge: overwrite only provided fields
+  const sections = ["personal", "education", "experience", "projects", "skills", "achievements", "publications"];
+  for (const section of sections) {
+    if (data[section] === undefined) continue;
+
+    if (section === "achievements") {
+      // Flat array of strings
+      resume.data.achievements = data.achievements;
+    } else if (Array.isArray(data[section])) {
+      // Array sections (education, experience, projects, publications)
+      resume.data[section] = data[section];
+    } else if (typeof data[section] === "object") {
+      // Object sections (personal, skills)
+      resume.data[section] = { ...resume.data[section]?.toObject?.() || resume.data[section], ...data[section] };
+    }
+  }
+
+  resume.markModified("data");
+
+  // Auto-recompile PDF if template exists
+  if (resume.templateId) {
+    try {
+      const template = resume.templateId;
+      const latexString = generateLatex(template.latexTemplate, resume.data);
+      const pdfBuffer = await compilePDF(latexString, resume._id);
+      savePDF(pdfBuffer, resume._id);
+      resume.pdfUrl = `/pdfs/${resume._id}.pdf`;
+      resume.generatedLatex = latexString;
+    } catch (error) {
+      console.error("PDF recompile after edit failed:", error);
+    }
+  }
+
+  await resume.save();
+
+  const plainData = resume.data?.toObject ? resume.data.toObject() : resume.data;
+
+  res.status(200).json(
+    new ApiResponse(200, {
+      resume,
+      qualityScore: scoreResume(plainData),
+      pdfUrl: resume.pdfUrl,
+    }, "Resume data updated successfully")
   );
 });

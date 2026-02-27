@@ -89,8 +89,8 @@ const RESUME_SCHEMA = {
     type: "array"
   },
   skills: {
-    fields: ["languages", "technologies"],
-    required: ["languages", "technologies"],
+    fields: ["languages", "frameworks", "developerTools", "libraries", "technologies"],
+    required: ["languages"],
     type: "object"
   },
   achievements: {
@@ -157,9 +157,10 @@ const MOCK_PREVIEW_DATA = {
   ],
   skills: {
     languages: ["Python", "JavaScript", "TypeScript", "Java", "C++"],
-    frameworks: ["React", "Node.js", "Express.js", "PostgreSQL", "MongoDB"],
+    frameworks: ["React", "Node.js", "Express.js", "Next.js"],
     developerTools: ["Git", "Docker", "Kubernetes", "AWS", "VS Code"],
-    libraries: ["Pandas", "NumPy", "Redux", "Material UI"]
+    libraries: ["Pandas", "NumPy", "Redux", "Material UI"],
+    technologies: ["PostgreSQL", "MongoDB", "Redis"]
   },
   achievements: [
     "Winner of HackMIT 2022 - Best AI/ML Project",
@@ -585,12 +586,24 @@ class AgenticResumeAgent {
 
     // Skills
     const languages = resumeData?.skills?.languages || [];
+    const frameworks = resumeData?.skills?.frameworks || [];
+    const developerTools = resumeData?.skills?.developerTools || [];
+    const libraries = resumeData?.skills?.libraries || [];
     const technologies = resumeData?.skills?.technologies || [];
     if (languages.length === 0) {
       missing.push({ section: "skills", field: "languages", required: true, description: "Programming languages you know" });
     }
+    if (frameworks.length === 0) {
+      missing.push({ section: "skills", field: "frameworks", required: false, description: "Frameworks and databases you use" });
+    }
+    if (developerTools.length === 0) {
+      missing.push({ section: "skills", field: "developerTools", required: false, description: "Developer tools you use" });
+    }
+    if (libraries.length === 0) {
+      missing.push({ section: "skills", field: "libraries", required: false, description: "Libraries you work with" });
+    }
     if (technologies.length === 0) {
-      missing.push({ section: "skills", field: "technologies", required: true, description: "Frameworks and technologies you use" });
+      missing.push({ section: "skills", field: "technologies", required: false, description: "Other technologies you use" });
     }
 
     // Achievements (optional)
@@ -1121,7 +1134,10 @@ class AgenticResumeAgent {
       "projects.highlights": "Describe what you built (2-3 bullet points)",
       "projects.technologies": "What technologies did you use?",
       "skills.languages": "💻 What programming languages do you know?",
-      "skills.technologies": "What frameworks and technologies do you use?",
+      "skills.frameworks": "What frameworks & databases do you use? (e.g., React, Node.js, PostgreSQL) (or type 'skip')",
+      "skills.developerTools": "What developer tools do you use? (e.g., Git, Docker, AWS) (or type 'skip')",
+      "skills.libraries": "Any notable libraries? (e.g., Pandas, Redux, Material UI) (or type 'skip')",
+      "skills.technologies": "Any other technologies? (or type 'skip')",
       "achievements.list": "🏆 Any achievements, awards, or certifications? (or type 'skip')",
       "publications.first_entry": "📄 Any publications or research papers? (or type 'skip')",
       "publications.title": "What's the publication title? (or type 'skip')",
@@ -1229,18 +1245,27 @@ const scoreResume = (resumeData) => {
   // ── 5. Skills (15 pts) ─────────────────────────────────────────
   const skills = resumeData?.skills || {};
   const languages = skills.languages || [];
+  const frameworks = skills.frameworks || [];
+  const devTools = skills.developerTools || [];
+  const libs = skills.libraries || [];
   const technologies = skills.technologies || [];
   let skillScore = 0;
 
-  if (languages.length >= 1) skillScore += 4;
-  if (languages.length >= 3) skillScore += 3;
-  if (technologies.length >= 1) skillScore += 4;
-  if (technologies.length >= 3) skillScore += 4;
+  if (languages.length >= 1) skillScore += 3;
+  if (languages.length >= 3) skillScore += 4;  // 7pts for good language coverage
+  if (frameworks.length >= 1) skillScore += 2;
+  if (devTools.length >= 1) skillScore += 2;
+  if (libs.length >= 1) skillScore += 2;
+  if (technologies.length >= 1) skillScore += 2;
   skillScore = Math.min(15, skillScore);
 
   breakdown.push({ category: "Skills", score: skillScore, maxScore: 15 });
   if (languages.length === 0) tips.push("List your programming languages to pass ATS scans.");
-  if (technologies.length < 3) tips.push("Add more frameworks/technologies — aim for 5+ to stand out.");
+  if (frameworks.length === 0) tips.push("Add frameworks & databases (e.g., React, Node.js, PostgreSQL).");
+  if (devTools.length === 0) tips.push("List developer tools (e.g., Git, Docker, AWS) for ATS keywords.");
+  if (languages.length + frameworks.length + devTools.length + libs.length + technologies.length < 8) {
+    tips.push("Aim for 8+ total skills/tools across all categories to maximize ATS match rate.");
+  }
   totalScore += skillScore;
 
   // ── 6. Achievements (10 pts) ───────────────────────────────────

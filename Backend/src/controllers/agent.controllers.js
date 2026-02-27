@@ -115,7 +115,7 @@ export const startAgenticConversation = asyncHandler(async (req, res) => {
     education: [],
     experience: [],
     projects: [],
-    skills: { languages: [], technologies: [] },
+    skills: { languages: [], frameworks: [], developerTools: [], libraries: [], technologies: [] },
     achievements: [],
     publications: [],
   };

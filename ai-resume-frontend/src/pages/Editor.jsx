@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight, Sparkles } from 'lucide-react';
-import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate } from '../services/resume.api';
+import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight, Sparkles, MessageSquare, PenLine, ChevronDown, Target, Zap } from 'lucide-react';
+import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate, UpdateResumeData } from '../services/resume.api';
 import { StartAgentChat, MsgAgent, SkipAgentQuestion } from '../services/agent.api';
 import { getAllTemplates } from '../services/template.api';
 import { GridScan } from '../components/ui/gridScan';
 import DotGrid from '../components/ui/dotGrid';
+import EditForm from '../components/EditForm';
 
 
 
@@ -29,6 +30,9 @@ const Editor = () => {
     const [conversationStarted, setConversationStarted] = useState(false);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [qualityScore, setQualityScore] = useState(null);
+    const [editorMode, setEditorMode] = useState('chat'); // 'chat' or 'edit'
+    const [showAtsPanel, setShowAtsPanel] = useState(false);
+    const [editSaving, setEditSaving] = useState(false);
 
 
     // Fetch Resume & Templates on Mount
@@ -41,6 +45,7 @@ const Editor = () => {
 
                 if (resumeRes.data?.data?.resume) {
                     const resume = resumeRes.data.data.resume;
+                    setResumeData(resume.data);
                     handleRecompile()
 
                     // Restore chat history
@@ -100,57 +105,45 @@ const Editor = () => {
                     content: startRes.data.data.aiMessage
                 }]);
                 setConversationStarted(true);
-                // Also update resume data to clean state (cleared mock data)
                 if (startRes.data?.data?.resumeData) {
                     setResumeData(startRes.data.data.resumeData);
                 }
             }
         } catch (error) {
             console.error("Error starting chat:", error);
-            alert("Failed to start conversation");
         } finally {
             setChatLoading(false);
         }
     };
 
     const handleSendMessage = async (e) => {
-        e.preventDefault();
-        if (!inputMessage.trim() || chatLoading) return;
-
-        const userMsg = inputMessage;
+        e?.preventDefault();
+        const trimmed = inputMessage.trim();
+        if (!trimmed || chatLoading) return;
+        setMessages(prev => [...prev, { role: 'user', content: trimmed }]);
         setInputMessage('');
-        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
         setChatLoading(true);
-
         try {
-            const response = await MsgAgent({ resumeId: id, message: userMsg });
-
-            if (response.data?.data) {
-                const { aiMessage, resumeData: updatedResumeData, pdfRecompiled } = response.data.data;
-
-                setMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
-
-                // Update resume preview
-                if (updatedResumeData) {
-                    setResumeData(updatedResumeData);
+            const res = await MsgAgent({ resumeId: id, message: trimmed });
+            const data = res?.data?.data;
+            if (data) {
+                if (data.aiMessage) {
+                    setMessages(prev => [...prev, { role: 'assistant', content: data.aiMessage }]);
                 }
-
-                // If PDF was auto-recompiled, update timestamp
-                if (pdfRecompiled) {
+                if (data.resumeData) setResumeData(data.resumeData);
+                if (data.qualityScore) setQualityScore(data.qualityScore);
+                if (data.pdfRecompiled) {
                     setPdfTimestamp(Date.now());
-                    console.log("✅ PDF auto-updated!");
+                    setPdfLoading(true);
                 }
-
-                // Update quality score
-                if (response.data.data.qualityScore) {
-                    setQualityScore(response.data.data.qualityScore);
+                if (data.isComplete) {
+                    setConversationStarted(true);
                 }
             }
         } catch (error) {
-            console.error("Chat error:", error);
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: "Sorry, I encountered an error. Please try again."
+                content: "Oops! Something went wrong. Please try again."
             }]);
         } finally {
             setChatLoading(false);
@@ -159,26 +152,26 @@ const Editor = () => {
 
     const handleSkip = async () => {
         if (chatLoading) return;
+        setMessages(prev => [...prev, { role: 'user', content: 'skip' }]);
         setChatLoading(true);
-
-        // Optimistically add "Skip" message
-        setMessages(prev => [...prev, { role: 'user', content: 'Skip' }]);
-
         try {
-            const response = await SkipAgentQuestion({ resumeId: id });
-
-            if (response.data?.data) {
-                const { aiMessage, conversationState } = response.data.data;
-                setMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
-
-                // Update state if needed
-                // console.log("Skipped to:", conversationState);
+            const res = await SkipAgentQuestion({ resumeId: id });
+            const data = res?.data?.data;
+            if (data) {
+                if (data.aiMessage) {
+                    setMessages(prev => [...prev, { role: 'assistant', content: data.aiMessage }]);
+                }
+                if (data.resumeData) setResumeData(data.resumeData);
+                if (data.qualityScore) setQualityScore(data.qualityScore);
+                if (data.pdfRecompiled) {
+                    setPdfTimestamp(Date.now());
+                    setPdfLoading(true);
+                }
             }
         } catch (error) {
-            console.error("Skip error:", error);
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: "Sorry, I couldn't skip this question. Please try again."
+                content: "Oops! Something went wrong. Please try again."
             }]);
         } finally {
             setChatLoading(false);
@@ -186,41 +179,64 @@ const Editor = () => {
     };
 
     const handleRecompile = async () => {
+        setRecompiling(true);
         setPdfLoading(true);
-
         try {
-            const res = await DownloadPdf(id);
-            if (res) {
-                setPdfUrl(res);
-                setPdfTimestamp(Date.now()); // triggers reload
+            const res = await RecompilePdf(id);
+            if (res.data?.data?.pdfUrl) {
+                setPdfUrl(res.data.data.pdfUrl);
+                setPdfTimestamp(Date.now());
             }
         } catch (error) {
-            console.error("Recompile error:", error);
-            alert("❌ Failed to recompile PDF");
+            console.error("Recompile failed:", error);
+        } finally {
+            setRecompiling(false);
         }
     };
 
     const handleDownload = async () => {
         try {
-            const pdfUrl = await DownloadPdf(id);
-
-            console.log("PDF URL:", pdfUrl);
-
-            // Open PDF in new tab
-            window.open(pdfUrl, "_blank", "noopener,noreferrer");
-
+            const url = await DownloadPdf(id);
+            window.open(url, '_blank');
         } catch (error) {
-            console.error("Open PDF error:", error);
-            alert("Failed to open PDF");
+            console.error("Download failed:", error);
         }
     };
 
 
     const changeTemp = async (templateId) => {
-        console.log(templateId)
-        await ChangeTemplate({ id, templateId })
-        handleRecompile()
-    }
+        try {
+            const res = await ChangeTemplate({ id, templateId });
+            if (res.data?.data?.resume?.pdfUrl) {
+                setPdfUrl(res.data.data.resume.pdfUrl);
+                setPdfTimestamp(Date.now());
+                setPdfLoading(true);
+            }
+        } catch (error) {
+            console.error("Template change failed:", error);
+        }
+    };
+
+    const handleEditSave = async (newData) => {
+        setEditSaving(true);
+        try {
+            const res = await UpdateResumeData(id, newData);
+            const data = res?.data?.data;
+            if (data) {
+                if (data.resume?.data) setResumeData(data.resume.data);
+                if (data.qualityScore) setQualityScore(data.qualityScore);
+                if (data.pdfUrl) {
+                    setPdfUrl(data.pdfUrl);
+                    setPdfTimestamp(Date.now());
+                    setPdfLoading(true);
+                }
+            }
+        } catch (error) {
+            console.error("Save failed:", error);
+        } finally {
+            setEditSaving(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -336,136 +352,215 @@ const Editor = () => {
                 </main>
 
 
-                {/* RIGHT PANEL: Chat */}
+                {/* RIGHT PANEL: Chat / Edit */}
                 <aside className="w-[450px] bg-slate-50 border-l border-slate-200 flex flex-col shadow-xl z-20 relative overflow-hidden">
 
-                    {/* Chat Header */}
-                    <div className="p-5 border-b border-slate-200 bg-white flex justify-between items-center z-10 sticky top-0">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700 shadow-sm border border-slate-200">
-                                <Sparkles size={18} className="text-slate-600" />
+                    {/* Panel Header with Mode Toggle */}
+                    <div className="p-4 border-b border-slate-200 bg-white z-10 sticky top-0">
+                        <div className="flex justify-between items-center mb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700 shadow-sm border border-slate-200">
+                                    <Sparkles size={18} className="text-slate-600" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-sm">Resume Assistant</h3>
+                                    <p className="text-[11px] text-green-600 flex items-center gap-1.5 font-medium bg-green-50 px-2 py-0.5 rounded-full w-fit mt-0.5">
+                                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                                        Online & Ready
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-slate-800 text-sm">Resume Assistant</h3>
-                                <p className="text-[11px] text-green-600 flex items-center gap-1.5 font-medium bg-green-50 px-2 py-0.5 rounded-full w-fit mt-0.5">
-                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                                    Online & Ready
-                                </p>
-                            </div>
-                        </div>
-                        {qualityScore && (
-                            <div className="flex items-center gap-2">
-                                <div className={`px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm border ${qualityScore.percentage >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            {qualityScore && (
+                                <button
+                                    onClick={() => setShowAtsPanel(!showAtsPanel)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm border cursor-pointer transition-all hover:scale-105 ${qualityScore.percentage >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                         qualityScore.percentage >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                             'bg-red-50 text-red-700 border-red-200'
-                                    }`}>
+                                        }`}>
                                     {qualityScore.percentage}% · {qualityScore.grade}
-                                </div>
-                            </div>
-                        )}
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Mode Toggle */}
+                        <div className="flex bg-slate-100 rounded-xl p-1">
+                            <button
+                                onClick={() => setEditorMode('chat')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${editorMode === 'chat'
+                                        ? 'bg-white text-slate-800 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                <MessageSquare size={14} /> AI Chat
+                            </button>
+                            <button
+                                onClick={() => setEditorMode('edit')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${editorMode === 'edit'
+                                        ? 'bg-white text-slate-800 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                <PenLine size={14} /> Direct Edit
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Chat Messages */}
-                    <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                        {messages.length === 0 && !conversationStarted && (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                                <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20 transform rotate-3">
-                                    <Bot size={32} className="text-white" />
-                                </div>
-                                <h3 className="text-xl font-bold text-slate-800 mb-2">Resume Preview</h3>
-                                <p className="text-slate-500 font-medium mb-8 max-w-[260px]">
-                                    This is a preview with sample data. Ready to build your own?
-                                </p>
-                                <button
-                                    onClick={handleStartChat}
-                                    disabled={chatLoading}
-                                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center gap-2"
-                                >
-                                    {chatLoading ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
-                                    Start Building
+                    {/* ATS Score Panel (collapsible) */}
+                    {showAtsPanel && qualityScore && (
+                        <div className="bg-white border-b border-slate-200 p-4 animate-in slide-in-from-top duration-300">
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                    <Target size={16} className="text-blue-600" /> ATS Score Breakdown
+                                </h4>
+                                <button onClick={() => setShowAtsPanel(false)} className="text-slate-400 hover:text-slate-600">
+                                    <ChevronDown size={16} />
                                 </button>
                             </div>
-                        )}
 
-                        {messages.map((msg, index) => (
-                            <div
-                                key={index}
-                                className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-4 duration-500`}
-                            >
-                                {/* Avatar */}
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${msg.role === 'user'
-                                    ? 'bg-white border-slate-100'
-                                    : 'bg-gradient-to-br from-blue-600 to-violet-600 border-transparent text-white'
-                                    }`}>
-                                    {msg.role === 'user' ? (
-                                        <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
-                                            <User size={18} />
+                            {/* Category Bars */}
+                            <div className="space-y-2 mb-4">
+                                {qualityScore.breakdown?.map((cat, i) => (
+                                    <div key={i}>
+                                        <div className="flex justify-between text-xs mb-0.5">
+                                            <span className="font-medium text-slate-600">{cat.category}</span>
+                                            <span className="text-slate-500">{cat.score}/{cat.maxScore}</span>
                                         </div>
-                                    ) : (
-                                        <Bot size={18} />
-                                    )}
-                                </div>
+                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-500 ${(cat.score / cat.maxScore) >= 0.8 ? 'bg-emerald-500' :
+                                                        (cat.score / cat.maxScore) >= 0.5 ? 'bg-amber-500' : 'bg-red-400'
+                                                    }`}
+                                                style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
 
-                                {/* Message Bubble */}
-                                <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm relative group-hover:shadow-md transition-shadow ${msg.role === 'user'
-                                    ? 'bg-gradient-to-br from-blue-600 to-violet-600 text-white rounded-tr-sm shadow-blue-500/10'
-                                    : 'bg-white text-slate-700 border border-slate-100 rounded-tl-sm'
-                                    }`}>
-                                    {msg.content.split('\n').map((line, i) => (
-                                        <p key={i} className={`mb-1.5 last:mb-0 ${msg.role === 'user' ? 'text-blue-50' : 'text-slate-600'}`}>
-                                            {line}
+                            {/* Tips */}
+                            {qualityScore.tips?.length > 0 && (
+                                <div className="space-y-1.5">
+                                    <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                        <Zap size={12} className="text-amber-500" /> Tips to Improve
+                                    </h5>
+                                    {qualityScore.tips.map((tip, i) => (
+                                        <p key={i} className="text-xs text-slate-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
+                                            {tip}
                                         </p>
                                     ))}
                                 </div>
-                            </div>
-                        ))}
+                            )}
+                        </div>
+                    )}
 
-                        {/* Typing Indicator */}
-                        {chatLoading && (
-                            <div className="flex gap-4 animate-in fade-in zoom-in duration-300">
-                                <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 shadow-md text-white">
-                                    <Bot size={18} />
-                                </div>
-                                <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm p-4 shadow-sm flex items-center gap-1.5 w-fit">
-                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                                </div>
-                            </div>
-                        )}
-                        <div ref={messagesEndRef} className="h-2" />
-                    </div>
+                    {/* Mode Content */}
+                    {editorMode === 'edit' ? (
+                        <EditForm resumeData={resumeData} onSave={handleEditSave} saving={editSaving} />
+                    ) : (
+                        <>
+                            {/* Chat Messages */}
+                            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+                                {messages.length === 0 && !conversationStarted && (
+                                    <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                                        <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20 transform rotate-3">
+                                            <Bot size={32} className="text-white" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-slate-800 mb-2">Resume Preview</h3>
+                                        <p className="text-slate-500 font-medium mb-8 max-w-[260px]">
+                                            This is a preview with sample data. Ready to build your own?
+                                        </p>
+                                        <button
+                                            onClick={handleStartChat}
+                                            disabled={chatLoading}
+                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center gap-2"
+                                        >
+                                            {chatLoading ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
+                                            Start Building
+                                        </button>
+                                    </div>
+                                )}
 
-                    {/* Input Area */}
-                    <div className="p-5 bg-white border-t border-slate-200 z-20">
-                        <form onSubmit={handleSendMessage} className="relative group">
-                            <input
-                                type="text"
-                                value={inputMessage}
-                                onChange={(e) => setInputMessage(e.target.value)}
-                                placeholder="Type your answer..."
-                                className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-slate-400 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400 text-slate-700 shadow-inner relative z-10"
-                            />
-                            <button
-                                type="button"
-                                onClick={handleSkip}
-                                disabled={chatLoading}
-                                className="absolute right-12 top-2 p-2 px-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium z-20 shadow-sm mr-2"
-                            >
-                                Skip
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={!inputMessage.trim() || chatLoading}
-                                className="absolute right-2 top-2 p-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 z-20 shadow-sm"
-                            >
-                                <Send size={18} strokeWidth={2.5} />
-                            </button>
-                        </form>
-                        <p className="text-center text-[10px] text-slate-400 mt-3 font-medium">
-                            AI-generated content may be inaccurate. Check important details.
-                        </p>
-                    </div>
+                                {messages.map((msg, index) => (
+                                    <div
+                                        key={index}
+                                        className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-4 duration-500`}
+                                    >
+                                        {/* Avatar */}
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${msg.role === 'user'
+                                            ? 'bg-white border-slate-100'
+                                            : 'bg-gradient-to-br from-blue-600 to-violet-600 border-transparent text-white'
+                                            }`}>
+                                            {msg.role === 'user' ? (
+                                                <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
+                                                    <User size={18} />
+                                                </div>
+                                            ) : (
+                                                <Bot size={18} />
+                                            )}
+                                        </div>
+
+                                        {/* Message Bubble */}
+                                        <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm relative group-hover:shadow-md transition-shadow ${msg.role === 'user'
+                                            ? 'bg-gradient-to-br from-blue-600 to-violet-600 text-white rounded-tr-sm shadow-blue-500/10'
+                                            : 'bg-white text-slate-700 border border-slate-100 rounded-tl-sm'
+                                            }`}>
+                                            {msg.content.split('\n').map((line, i) => (
+                                                <p key={i} className={`mb-1.5 last:mb-0 ${msg.role === 'user' ? 'text-blue-50' : 'text-slate-600'}`}>
+                                                    {line}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Typing Indicator */}
+                                {chatLoading && (
+                                    <div className="flex gap-4 animate-in fade-in zoom-in duration-300">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 shadow-md text-white">
+                                            <Bot size={18} />
+                                        </div>
+                                        <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm p-4 shadow-sm flex items-center gap-1.5 w-fit">
+                                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div ref={messagesEndRef} className="h-2" />
+                            </div>
+
+                            {/* Input Area */}
+                            <div className="p-5 bg-white border-t border-slate-200 z-20">
+                                <form onSubmit={handleSendMessage} className="relative group">
+                                    <input
+                                        type="text"
+                                        value={inputMessage}
+                                        onChange={(e) => setInputMessage(e.target.value)}
+                                        placeholder="Type your answer..."
+                                        className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-slate-400 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400 text-slate-700 shadow-inner relative z-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleSkip}
+                                        disabled={chatLoading}
+                                        className="absolute right-12 top-2 p-2 px-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium z-20 shadow-sm mr-2"
+                                    >
+                                        Skip
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={!inputMessage.trim() || chatLoading}
+                                        className="absolute right-2 top-2 p-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 z-20 shadow-sm"
+                                    >
+                                        <Send size={18} strokeWidth={2.5} />
+                                    </button>
+                                </form>
+                                <p className="text-center text-[10px] text-slate-400 mt-3 font-medium">
+                                    AI-generated content may be inaccurate. Check important details.
+                                </p>
+                            </div>
+                        </>
+                    )}
                 </aside>
             </div>
         </div>
