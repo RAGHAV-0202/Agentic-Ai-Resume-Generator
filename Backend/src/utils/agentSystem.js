@@ -24,7 +24,6 @@ import fetch from "node-fetch";
 const GROQ_MODELS = [
   "openai/gpt-oss-120b",                          // Primary — 30 req/min, 8K tok/min
   "llama-3.3-70b-versatile",                       // Fallback 1 — 30 req/min, 12K tok/min
-  "meta-llama/llama-4-scout-17b-16e-instruct",     // Fallback 2 — 30 req/min, 30K tok/min
   "qwen/qwen3-32b",                                // Fallback 3 — 60 req/min, 6K tok/min
 ];
 
@@ -614,6 +613,14 @@ class AgenticResumeAgent {
       const schema = RESUME_SCHEMA[section];
       if (!schema) continue;
 
+      // GUARD: Never save skip/no/pass/none as actual data values
+      const skipValues = /^(skip|no|pass|none|nope|n\/a|na|next|move on|_skipped)$/i;
+      const isSkipValue = typeof value === "string" && skipValues.test(value.trim());
+      if (isSkipValue) {
+        console.log(`⛔ Rejecting skip-value for ${section}.${field}: "${value}"`);
+        continue;
+      }
+
       try {
         if (section === "achievements") {
           // Achievements are a flat array of strings
@@ -727,11 +734,47 @@ class AgenticResumeAgent {
         };
       }
 
-      // Check if the current field is REQUIRED — if so, let the LLM handle it
-      // (it will explain the field is needed or ask the user to provide it)
+      // Check if the current field is REQUIRED — if so, check context
       const schema = RESUME_SCHEMA[currentFocus.section];
       const isRequired = schema?.required?.includes(currentFocus.field);
+
       if (isRequired) {
+        // SECTION-LEVEL SKIP: If user skips the FIRST required field of a NEW/EMPTY entry,
+        // they want to skip the entire section, not just one field.
+        const isArraySection = schema?.type === "array";
+        const isFirstField = schema?.fields?.[0] === currentFocus.field;
+        const currentEntry = resumeData?.[currentFocus.section]?.[currentFocus.arrayIndex];
+        const entryIsEmpty = !currentEntry || Object.keys(currentEntry).every(k => {
+          const v = currentEntry[k];
+          return !v || v === "_skipped" || v === "skip" || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
+        });
+        const sectionIsNew = !resumeData?.[currentFocus.section] || resumeData[currentFocus.section].length === 0;
+
+        if (isArraySection && (sectionIsNew || (isFirstField && entryIsEmpty))) {
+          // Skip the ENTIRE section — remove any empty entry we may have created
+          if (resumeData[currentFocus.section]?.length > 0 && entryIsEmpty) {
+            resumeData[currentFocus.section].pop();
+          }
+          const nextSectionIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
+          const nextSec = nextSectionIdx < SECTION_ORDER.length ? SECTION_ORDER[nextSectionIdx] : "complete";
+          const nextFocus = computeCurrentFocus(resumeData, nextSec);
+          console.log(`  → section-level skip (empty ${currentFocus.section}), advancing to: ${nextFocus.section}.${nextFocus.field}`);
+
+          return {
+            updatedData: resumeData,
+            extractedFields: [],
+            nextQuestion: nextFocus.section === "complete"
+              ? "🎉 Your resume looks complete! Would you like to make any edits?"
+              : nextFocus.askAddMore
+                ? `Would you like to add a ${nextFocus.section.replace(/s$/, '')} entry?`
+                : this._generateBasicQuestion([{ section: nextFocus.section, field: nextFocus.field, required: true, description: "" }]),
+            nextSection: nextFocus.section,
+            nextField: nextFocus.field,
+            isComplete: nextFocus.section === "complete",
+            wasUpdate: false
+          };
+        }
+
         console.log(`  → field "${currentFocus.field}" is required — sending to LLM`);
         // Fall through to the LLM call below (don't return early)
       } else {
@@ -1080,11 +1123,19 @@ class AgenticResumeAgent {
       "skills.languages": "💻 What programming languages do you know?",
       "skills.technologies": "What frameworks and technologies do you use?",
       "achievements.list": "🏆 Any achievements, awards, or certifications? (or type 'skip')",
-      "publications.first_entry": "📄 Any publications? (or type 'skip')",
+      "publications.first_entry": "📄 Any publications or research papers? (or type 'skip')",
+      "publications.title": "What's the publication title? (or type 'skip')",
+      "publications.authors": "Who are the authors? (or type 'skip')",
+      "publications.journal": "Which journal/conference was it published in? (or type 'skip')",
+      "publications.year": "What year was it published?",
+      "publications.doi": "Do you have a DOI or link? (or type 'skip')",
     };
 
     const key = `${target.section}.${target.field}`;
-    return questionMap[key] || `Could you tell me about your ${target.field}? (or type 'skip')`;
+    if (key.endsWith(".addMore")) {
+      return `Would you like to add another ${target.section.replace(/s$/, '')} entry?`;
+    }
+    return questionMap[key] || `What's your ${target.field.replace(/([A-Z])/g, ' $1').toLowerCase()}? (or type 'skip')`;
   }
 }
 
