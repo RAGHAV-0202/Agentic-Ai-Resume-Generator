@@ -6,7 +6,7 @@ export const baseURL = "https://agentic-ai-resume-generator.onrender.com"
 const api = axios.create({
   baseURL: baseURL,
   withCredentials: true,
-  timeout: 15000,
+  timeout: 30000,
 });
 
 

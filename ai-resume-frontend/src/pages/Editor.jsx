@@ -206,15 +206,21 @@ const Editor = () => {
 
 
     const changeTemp = async (templateId) => {
+        setPdfLoading(true);
         try {
             const res = await ChangeTemplate({ id, templateId });
+            console.log("Template change response:", res.data);
             if (res.data?.data?.resume?.pdfUrl) {
                 setPdfUrl(baseURL + res.data.data.resume.pdfUrl);
                 setPdfTimestamp(Date.now());
-                setPdfLoading(true);
+            } else {
+                // Fallback: trigger a recompile if template change didn't return pdfUrl
+                await handleRecompile();
             }
         } catch (error) {
             console.error("Template change failed:", error);
+            // Still try to recompile with whatever template was set
+            await handleRecompile();
         }
     };
 
