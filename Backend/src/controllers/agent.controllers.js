@@ -47,7 +47,7 @@ const cleanForFrontend = (data) => {
 
   const removeEmpty = (obj) => {
     if (typeof obj === "string") {
-      return obj.trim() === "" ? null : obj;
+      return (obj.trim() === "" || obj === "_skipped") ? null : obj;
     }
     if (Array.isArray(obj)) {
       return obj

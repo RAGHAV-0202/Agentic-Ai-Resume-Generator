@@ -292,7 +292,8 @@ const computeCurrentFocus = (resumeData, minSection = "personal") => {
       for (const field of schema.fields) {
         const val = lastEntry?.[field];
         const isEmpty = !val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0);
-        if (isEmpty) {
+        const isSkipped = val === "_skipped" || (Array.isArray(val) && val.length === 1 && val[0] === "_skipped");
+        if (isEmpty && !isSkipped) {
           return { section, field, arrayIndex: actualLastIdx, askAddMore: false };
         }
       }
@@ -668,7 +669,21 @@ class AgenticResumeAgent {
         console.log(`  → field "${currentFocus.field}" is required — sending to LLM`);
         // Fall through to the LLM call below (don't return early)
       } else {
-        // For OPTIONAL field skips — advance to next field in current section
+        // For OPTIONAL field skips — mark as skipped in data and advance
+        const schema = RESUME_SCHEMA[currentFocus.section];
+        if (schema?.type === "array" && currentFocus.arrayIndex >= 0) {
+          // Mark the skipped field with "_skipped" so computeCurrentFocus moves past it
+          if (!resumeData[currentFocus.section]) resumeData[currentFocus.section] = [];
+          if (!resumeData[currentFocus.section][currentFocus.arrayIndex]) {
+            resumeData[currentFocus.section][currentFocus.arrayIndex] = {};
+          }
+          const isArrayField = schema.arrayFields?.includes(currentFocus.field);
+          resumeData[currentFocus.section][currentFocus.arrayIndex][currentFocus.field] = isArrayField ? ["_skipped"] : "_skipped";
+        } else if (schema?.type === "object") {
+          if (!resumeData[currentFocus.section]) resumeData[currentFocus.section] = {};
+          resumeData[currentFocus.section][currentFocus.field] = "_skipped";
+        }
+
         const nextFocus = this._computeNextFieldAfterSkip(resumeData, currentFocus, currentSection);
         console.log(`  → optional field skip, next: ${nextFocus.section}.${nextFocus.field} | askAddMore: ${nextFocus.askAddMore}`);
 
@@ -681,7 +696,7 @@ class AgenticResumeAgent {
             nextSection: nextFocus.section,
             nextField: "addMore",
             isComplete: false,
-            wasUpdate: false
+            wasUpdate: true
           };
         }
 
@@ -694,7 +709,7 @@ class AgenticResumeAgent {
           nextSection: nextFocus.section,
           nextField: nextFocus.field,
           isComplete: nextFocus.section === "complete",
-          wasUpdate: false
+          wasUpdate: true
         };
       }
     }
