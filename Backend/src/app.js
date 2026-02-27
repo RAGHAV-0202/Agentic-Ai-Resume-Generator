@@ -20,8 +20,8 @@ app.use(cookieParser())
 app.use("/pdfs", express.static("pdfs"))
 
 const corsOptions = {
-    origin: ["http://localhost:5173" , "https://agentic-resume.vercel.app"],
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT'],
+    origin: ["http://localhost:5173", "https://agentic-resume.vercel.app"],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT', 'PATCH'],
     allowedHeaders: ['Content-type', 'Authorization', 'Cookie'],
     credentials: true
 }
