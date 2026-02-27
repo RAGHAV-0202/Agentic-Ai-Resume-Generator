@@ -614,18 +614,23 @@ class AgenticResumeAgent {
     const trimmedMsg = userMessage.trim();
 
     if (skipPatterns.test(trimmedMsg)) {
-      // For "add more?" prompts — user says no, advance to next section
+      console.log(`🔀 Skip detected: "${trimmedMsg}" | currentSection: ${currentSection} | focus: ${currentFocus.section}.${currentFocus.field} | askAddMore: ${currentFocus.askAddMore}`);
+
+      // Always handle "add more?" programmatically — it's a yes/no question
       if (currentFocus.askAddMore) {
         const nextSectionIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
         const nextSec = nextSectionIdx < SECTION_ORDER.length ? SECTION_ORDER[nextSectionIdx] : "complete";
         const nextFocus = computeCurrentFocus(resumeData, nextSec);
+        console.log(`  → addMore=no, advancing to: ${nextFocus.section}.${nextFocus.field}`);
 
         return {
           updatedData: resumeData,
           extractedFields: [],
           nextQuestion: nextFocus.section === "complete"
             ? "🎉 Your resume looks complete! Would you like to make any edits?"
-            : this._generateBasicQuestion([{ section: nextFocus.section, field: nextFocus.field, required: true, description: "" }]),
+            : nextFocus.askAddMore
+              ? `Would you like to add a ${nextFocus.section.replace(/s$/, '')} entry?`
+              : this._generateBasicQuestion([{ section: nextFocus.section, field: nextFocus.field, required: true, description: "" }]),
           nextSection: nextFocus.section,
           nextField: nextFocus.field,
           isComplete: nextFocus.section === "complete",
@@ -633,23 +638,43 @@ class AgenticResumeAgent {
         };
       }
 
-      // For regular field skips — advance to next field in current section
-      // Temporarily mark the field as "skipped" by moving the focus forward
-      const nextFocus = this._computeNextFieldAfterSkip(resumeData, currentFocus, currentSection);
+      // Check if the current field is REQUIRED — if so, let the LLM handle it
+      // (it will explain the field is needed or ask the user to provide it)
+      const schema = RESUME_SCHEMA[currentFocus.section];
+      const isRequired = schema?.required?.includes(currentFocus.field);
+      if (isRequired) {
+        console.log(`  → field "${currentFocus.field}" is required — sending to LLM`);
+        // Fall through to the LLM call below (don't return early)
+      } else {
+        // For OPTIONAL field skips — advance to next field in current section
+        const nextFocus = this._computeNextFieldAfterSkip(resumeData, currentFocus, currentSection);
+        console.log(`  → optional field skip, next: ${nextFocus.section}.${nextFocus.field} | askAddMore: ${nextFocus.askAddMore}`);
 
-      return {
-        updatedData: resumeData,
-        extractedFields: [],
-        nextQuestion: nextFocus.askAddMore
-          ? `Would you like to add another ${nextFocus.section.replace(/s$/, '')} entry?`
-          : nextFocus.section === "complete"
+        // If the next focus is "add more?" for the SAME section, ask about it properly
+        if (nextFocus.askAddMore) {
+          return {
+            updatedData: resumeData,
+            extractedFields: [],
+            nextQuestion: `Would you like to add another ${nextFocus.section.replace(/s$/, '')} entry?`,
+            nextSection: nextFocus.section,
+            nextField: "addMore",
+            isComplete: false,
+            wasUpdate: false
+          };
+        }
+
+        return {
+          updatedData: resumeData,
+          extractedFields: [],
+          nextQuestion: nextFocus.section === "complete"
             ? "🎉 Your resume looks complete! Would you like to make any edits or add more details?"
             : this._generateBasicQuestion([{ section: nextFocus.section, field: nextFocus.field, required: true, description: "" }]),
-        nextSection: nextFocus.section,
-        nextField: nextFocus.field,
-        isComplete: nextFocus.section === "complete",
-        wasUpdate: false
-      };
+          nextSection: nextFocus.section,
+          nextField: nextFocus.field,
+          isComplete: nextFocus.section === "complete",
+          wasUpdate: false
+        };
+      }
     }
 
     const systemPrompt = buildSystemPrompt(resumeData, missingFields, currentFocus);
