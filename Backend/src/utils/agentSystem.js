@@ -22,17 +22,25 @@ import fetch from "node-fetch";
 // GROQ CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
 const GROQ_MODELS = [
-  "openai/gpt-oss-120b",      // Primary — OpenAI GPT OSS 120B
-  "llama-3.3-70b-versatile",   // Fallback 1 — Meta Llama 3.3 70B
-  "groq/compound",             // Fallback 2 — Groq Compound
-  "qwen/qwen3-32b",            // Fallback 3 — Qwen3 32B
+  "openai/gpt-oss-120b",                          // Primary — 30 req/min, 8K tok/min
+  "groq/compound",                                 // Fallback 2 — 30 req/min, 70K tok/min, great reasoning
+  "llama-3.3-70b-versatile",                       // Fallback 1 — 30 req/min, 12K tok/min
+  "meta-llama/llama-4-scout-17b-16e-instruct",     // Fallback 3 — 30 req/min, 30K tok/min
+  "qwen/qwen3-32b",                                // Fallback 4 — 60 req/min, 6K tok/min
 ];
 
-let modelIndex = 0;
-const getModel = () => {
-  const model = GROQ_MODELS[modelIndex % GROQ_MODELS.length];
-  modelIndex++;
-  return model;
+// Track per-model cooldowns (reset after 60s)
+const modelCooldowns = {};
+const getAvailableModel = () => {
+  const now = Date.now();
+  for (const model of GROQ_MODELS) {
+    const cooldownUntil = modelCooldowns[model] || 0;
+    if (now >= cooldownUntil) return model;
+  }
+  // All rate-limited — use the one with the soonest cooldown
+  return GROQ_MODELS.reduce((best, m) =>
+    (modelCooldowns[m] || 0) < (modelCooldowns[best] || 0) ? m : best
+  );
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -426,11 +434,19 @@ class AgenticResumeAgent {
   // ─────────────────────────────────────────────────────────────────
   // GROQ API CALL (with tool support)
   // ─────────────────────────────────────────────────────────────────
-  async callGroq(messages, tools = null, toolChoice = "auto", maxRetries = 2) {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  async callGroq(messages, tools = null, toolChoice = "auto") {
+    let lastError;
+
+    for (const model of GROQ_MODELS) {
+      // Skip models on cooldown
+      if (modelCooldowns[model] && Date.now() < modelCooldowns[model]) {
+        console.log(`⏳ Skipping ${model} (rate-limited until ${new Date(modelCooldowns[model]).toLocaleTimeString()})`);
+        continue;
+      }
+
       try {
         const payload = {
-          model: getModel(),
+          model,
           messages,
           temperature: 0.3,
           max_tokens: 2000
@@ -441,6 +457,7 @@ class AgenticResumeAgent {
           payload.tool_choice = toolChoice;
         }
 
+        console.log(`🤖 Trying model: ${model}`);
         const response = await fetch(this.API_URL, {
           method: "POST",
           headers: {
@@ -450,19 +467,36 @@ class AgenticResumeAgent {
           body: JSON.stringify(payload)
         });
 
+        if (response.status === 429) {
+          // Rate limited — cooldown this model for 60s and try next
+          modelCooldowns[model] = Date.now() + 60_000;
+          console.warn(`⚠️ Rate limited on ${model}, cooling down 60s. Trying next model...`);
+          lastError = new Error(`Rate limited on ${model}`);
+          continue;
+        }
+
         if (!response.ok) {
           const errBody = await response.text();
+          // If model doesn't support tools (e.g. compound), skip to next
+          if (response.status === 400 && errBody.includes("tool")) {
+            console.warn(`⚠️ ${model} doesn't support tool calling, trying next...`);
+            lastError = new Error(`${model} tool support error`);
+            continue;
+          }
           throw new Error(`API Error ${response.status}: ${errBody}`);
         }
 
         const data = await response.json();
         return data.choices[0].message;
       } catch (error) {
-        console.error(`Groq attempt ${attempt + 1} failed:`, error.message);
-        if (attempt === maxRetries) throw error;
-        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+        console.error(`❌ ${model} failed:`, error.message);
+        lastError = error;
+        // Continue to next model
       }
     }
+
+    // All models failed
+    throw lastError || new Error("All models failed");
   }
 
   // ─────────────────────────────────────────────────────────────────
