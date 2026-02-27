@@ -16,7 +16,7 @@ import Template from "../models/Template.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { createAgent } from "../utils/agentSystem.js";
+import { createAgent, scoreResume } from "../utils/agentSystem.js";
 import { generateLatex } from "../utils/LatexGenerator.js";
 import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
 import dotenv from "dotenv";
@@ -254,6 +254,7 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
         wasUpdate: result.wasUpdate,
         pdfRecompiled,
         chatHistory: resume.chatHistory,
+        qualityScore: scoreResume(toPlainObject(resume.data)),
       }, "Message processed successfully")
     );
   } catch (error) {
@@ -390,6 +391,7 @@ export const getConversationStatus = asyncHandler(async (req, res) => {
       })),
       resumeData: cleanedData,
       totalMessages: resume.chatHistory.length,
+      qualityScore: scoreResume(currentData),
     }, "Conversation status retrieved")
   );
 });

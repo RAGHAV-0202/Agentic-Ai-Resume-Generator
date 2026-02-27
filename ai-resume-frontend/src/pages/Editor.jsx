@@ -28,6 +28,7 @@ const Editor = () => {
     const [templates, setTemplates] = useState([]);
     const [conversationStarted, setConversationStarted] = useState(false);
     const [pdfLoading, setPdfLoading] = useState(false);
+    const [qualityScore, setQualityScore] = useState(null);
 
 
     // Fetch Resume & Templates on Mount
@@ -138,6 +139,11 @@ const Editor = () => {
                 if (pdfRecompiled) {
                     setPdfTimestamp(Date.now());
                     console.log("✅ PDF auto-updated!");
+                }
+
+                // Update quality score
+                if (response.data.data.qualityScore) {
+                    setQualityScore(response.data.data.qualityScore);
                 }
             }
         } catch (error) {
@@ -347,6 +353,16 @@ const Editor = () => {
                                 </p>
                             </div>
                         </div>
+                        {qualityScore && (
+                            <div className="flex items-center gap-2">
+                                <div className={`px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm border ${qualityScore.percentage >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                        qualityScore.percentage >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                            'bg-red-50 text-red-700 border-red-200'
+                                    }`}>
+                                    {qualityScore.percentage}% · {qualityScore.grade}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Chat Messages */}

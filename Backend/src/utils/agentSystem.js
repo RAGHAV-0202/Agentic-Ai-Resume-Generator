@@ -356,6 +356,35 @@ ${focusInstruction}
    - NEVER save the user's raw text as-is for highlights. Always transform it into polished, recruiter-ready bullet points.
 7. **Completion** — Mark isComplete=true ONLY when these are all filled: personal (name, email, phone), at least 1 education entry with required fields, at least 1 experience OR project with required fields, and skills (languages + technologies).
 
+## INTELLIGENCE FEATURES (apply automatically)
+
+8. **Smart Skill Expansion** — When users mention tech stacks or abbreviations, EXPAND them into individual technologies:
+   - "MERN" → save as ["MongoDB", "Express.js", "React.js", "Node.js"]
+   - "MEAN" → save as ["MongoDB", "Express.js", "Angular", "Node.js"]
+   - "LAMP" → save as ["Linux", "Apache", "MySQL", "PHP"]
+   - "AWS" → ask which services, or save as ["AWS (EC2, S3, Lambda)"] if unspecified
+   - "ML" → ask specifics, or save as ["Machine Learning (TensorFlow, PyTorch)"]
+   - Always expand abbreviations for skills.languages and skills.technologies.
+
+9. **Proactive Follow-ups** — After saving experience/project highlights, check if they contain quantifiable metrics. If NOT, ask ONE follow-up:
+   - "Great highlights! Could you share any specific metrics? e.g., 'How many users?', 'What % improvement?', 'Team size?', 'Revenue impact?' — Even estimates help make your resume stand out."
+   - Only ask ONCE per entry, then move on whether they provide metrics or not.
+
+10. **Typo & Grammar Auto-fix** — Fix obvious typos BEFORE saving data:
+   - Institution names: "Insititute" → "Institute", "Univeristy" → "University"
+   - Job titles: capitalize properly, e.g., "software engineering intern" → "Software Engineering Intern"
+   - City names: "panipat" → "Panipat"
+   - Degree names: "b.tech" → "B.Tech", "bsc" → "B.Sc"
+   - DO NOT change the meaning, only fix spelling/capitalization.
+
+11. **Section Summary** — After completing ALL fields for an array entry (education/experience/project), show a brief formatted summary BEFORE asking "add more?":
+   - Example: "✅ Here's what I captured:\n📍 Dhawan Enterprises — Software Engineering Intern (June 2025 – Sept 2025)\n• [bullet 1]\n• [bullet 2]\nWould you like to add another experience?"
+
+12. **Cross-section Intelligence** — Track technologies mentioned anywhere in the conversation:
+   - If the user mentions "React", "Node.js", "Python", "Docker", etc. in experience/project descriptions, remember them.
+   - When reaching the SKILLS section, pre-suggest these technologies: "Based on your experience, I noticed you used React, Node.js, and MongoDB. Want me to add these to your skills?"
+   - Only SUGGEST — don't auto-add without user confirmation.
+
 ## RESUME SCHEMA
 ${JSON.stringify(RESUME_SCHEMA, null, 2)}
 
@@ -925,8 +954,149 @@ class AgenticResumeAgent {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// RESUME QUALITY SCORER (deterministic — no LLM call)
+// ═══════════════════════════════════════════════════════════════════
+
+const scoreResume = (resumeData) => {
+  const breakdown = [];
+  const tips = [];
+  let totalScore = 0;
+
+  // ── 1. Personal Info (15 pts) ──────────────────────────────────
+  const personal = resumeData?.personal || {};
+  const personalFields = ["name", "email", "phone", "location", "linkedin"];
+  const personalOptional = ["github", "website"];
+  let personalScore = 0;
+
+  const filledRequired = personalFields.filter(f => personal[f] && String(personal[f]).trim());
+  personalScore += Math.min(12, Math.round((filledRequired.length / personalFields.length) * 12));
+  const filledOptional = personalOptional.filter(f => personal[f] && String(personal[f]).trim());
+  personalScore += Math.min(3, filledOptional.length * 1.5);
+  personalScore = Math.min(15, Math.round(personalScore));
+
+  breakdown.push({ category: "Personal Info", score: personalScore, maxScore: 15 });
+  if (!personal.linkedin) tips.push("Add a LinkedIn URL — recruiters check it first.");
+  if (!personal.github && !personal.website) tips.push("Add a GitHub or portfolio link to showcase your work.");
+  totalScore += personalScore;
+
+  // ── 2. Education (15 pts) ──────────────────────────────────────
+  const education = resumeData?.education || [];
+  const validEdu = education.filter(e => e?.institution && e?.degree);
+  let eduScore = 0;
+
+  if (validEdu.length >= 1) eduScore += 8;
+  if (validEdu.length >= 2) eduScore += 3;
+  validEdu.forEach(e => {
+    if (e.gpa) eduScore += 1;
+    if (e.coursework && e.coursework.length > 0) eduScore += 1;
+  });
+  eduScore = Math.min(15, eduScore);
+
+  breakdown.push({ category: "Education", score: eduScore, maxScore: 15 });
+  if (validEdu.length === 0) tips.push("Add at least one education entry with institution and degree.");
+  else if (!validEdu.some(e => e.gpa)) tips.push("Including your GPA (if 3.0+) strengthens your education section.");
+  totalScore += eduScore;
+
+  // ── 3. Experience (25 pts) ─────────────────────────────────────
+  const experience = resumeData?.experience || [];
+  const validExp = experience.filter(e => e?.company && e?.position);
+  let expScore = 0;
+
+  if (validExp.length >= 1) expScore += 10;
+  if (validExp.length >= 2) expScore += 5;
+  validExp.forEach(e => {
+    const highlights = e.highlights || [];
+    if (highlights.length >= 2) expScore += 3;
+    // Check for quantifiable metrics (numbers, percentages)
+    const hasMetrics = highlights.some(h => /\d+%?|\$[\d,]+|[0-9]+[xX]|hours?\/?week/i.test(h));
+    if (hasMetrics) expScore += 2;
+  });
+  expScore = Math.min(25, expScore);
+
+  breakdown.push({ category: "Experience", score: expScore, maxScore: 25 });
+  if (validExp.length === 0) tips.push("Add work experience — even internships count!");
+  else {
+    const noMetrics = validExp.filter(e => !(e.highlights || []).some(h => /\d+%?|\$[\d,]+/i.test(h)));
+    if (noMetrics.length > 0) tips.push(`Add quantifiable metrics to ${noMetrics[0].company} (e.g., "increased performance by 40%").`);
+  }
+  totalScore += expScore;
+
+  // ── 4. Projects (15 pts) ───────────────────────────────────────
+  const projects = resumeData?.projects || [];
+  const validProjects = projects.filter(p => p?.name);
+  let projScore = 0;
+
+  if (validProjects.length >= 1) projScore += 6;
+  if (validProjects.length >= 2) projScore += 3;
+  validProjects.forEach(p => {
+    if (p.technologies && p.technologies.length > 0) projScore += 1;
+    if (p.highlights && p.highlights.length >= 2) projScore += 1;
+    if (p.link) projScore += 1;
+  });
+  projScore = Math.min(15, projScore);
+
+  breakdown.push({ category: "Projects", score: projScore, maxScore: 15 });
+  if (validProjects.length === 0) tips.push("Add at least one project to showcase your hands-on skills.");
+  else if (!validProjects.some(p => p.link)) tips.push("Add live links or GitHub repos to your projects.");
+  totalScore += projScore;
+
+  // ── 5. Skills (15 pts) ─────────────────────────────────────────
+  const skills = resumeData?.skills || {};
+  const languages = skills.languages || [];
+  const technologies = skills.technologies || [];
+  let skillScore = 0;
+
+  if (languages.length >= 1) skillScore += 4;
+  if (languages.length >= 3) skillScore += 3;
+  if (technologies.length >= 1) skillScore += 4;
+  if (technologies.length >= 3) skillScore += 4;
+  skillScore = Math.min(15, skillScore);
+
+  breakdown.push({ category: "Skills", score: skillScore, maxScore: 15 });
+  if (languages.length === 0) tips.push("List your programming languages to pass ATS scans.");
+  if (technologies.length < 3) tips.push("Add more frameworks/technologies — aim for 5+ to stand out.");
+  totalScore += skillScore;
+
+  // ── 6. Achievements (10 pts) ───────────────────────────────────
+  const achievements = resumeData?.achievements || [];
+  let achScore = 0;
+
+  if (achievements.length >= 1) achScore += 5;
+  if (achievements.length >= 3) achScore += 3;
+  if (achievements.length >= 5) achScore += 2;
+  achScore = Math.min(10, achScore);
+
+  breakdown.push({ category: "Achievements", score: achScore, maxScore: 10 });
+  if (achievements.length === 0) tips.push("Add achievements, certifications, or awards (e.g., hackathon wins, scholarships).");
+  totalScore += achScore;
+
+  // ── 7. Bonus: Metrics density (+5 pts) ─────────────────────────
+  const allHighlights = [
+    ...(experience.flatMap(e => e.highlights || [])),
+    ...(projects.flatMap(p => p.highlights || []))
+  ];
+  const metricsCount = allHighlights.filter(h => /\d+%?|\$[\d,]+|[0-9]+[xX]/.test(h)).length;
+  const bonusScore = Math.min(5, Math.floor(metricsCount * 1.5));
+  totalScore += bonusScore;
+  breakdown.push({ category: "Metrics Bonus", score: bonusScore, maxScore: 5 });
+
+  // ── Grade ──────────────────────────────────────────────────────
+  totalScore = Math.min(105, totalScore); // cap at 105 with bonus
+  const grade = totalScore >= 90 ? "A+" : totalScore >= 80 ? "A" : totalScore >= 70 ? "B" : totalScore >= 60 ? "C" : totalScore >= 50 ? "D" : "F";
+
+  return {
+    score: totalScore,
+    maxScore: 105,
+    percentage: Math.round((totalScore / 105) * 100),
+    grade,
+    breakdown,
+    tips: tips.slice(0, 5), // max 5 actionable tips
+  };
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════════
 export const createAgent = (apiKey) => new AgenticResumeAgent(apiKey);
 export const getMockPreviewData = () => JSON.parse(JSON.stringify(MOCK_PREVIEW_DATA));
-export { RESUME_SCHEMA };
+export { RESUME_SCHEMA, scoreResume };
