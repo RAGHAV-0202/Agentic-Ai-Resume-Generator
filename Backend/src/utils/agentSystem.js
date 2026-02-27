@@ -236,9 +236,17 @@ const SECTION_ORDER = ["personal", "education", "experience", "projects", "skill
  * Compute the next field/section the agent should ask about.
  * Follows strict section order: personal → education → experience → projects → skills → achievements → publications
  * Within each section, goes through ALL fields (required + optional) before offering "add more" or moving on.
+ *
+ * @param {Object} resumeData - Current resume data
+ * @param {string} minSection - The minimum section to start from (prevents going backwards).
+ *                              Uses the conversationState.currentSection so we never revisit completed sections.
  */
-const computeCurrentFocus = (resumeData) => {
-  for (const section of SECTION_ORDER) {
+const computeCurrentFocus = (resumeData, minSection = "personal") => {
+  // Find the starting index — never go backwards
+  const minIndex = Math.max(0, SECTION_ORDER.indexOf(minSection));
+  const sectionsToCheck = SECTION_ORDER.slice(minIndex);
+
+  for (const section of sectionsToCheck) {
     const schema = RESUME_SCHEMA[section];
     if (!schema) continue;
 
@@ -275,19 +283,27 @@ const computeCurrentFocus = (resumeData) => {
         return { section, field: schema.fields[0], arrayIndex: 0, askAddMore: false };
       }
 
-      // Check if the LAST entry has all fields filled
-      const lastIdx = entries.length - 1;
-      const lastEntry = entries[lastIdx];
+      // Check if the LAST VALID entry has all fields filled
+      const lastIdx = validEntries.length - 1;
+      // Find the actual index in the full entries array
+      const actualLastIdx = entries.indexOf(validEntries[lastIdx]);
+      const lastEntry = validEntries[lastIdx];
+
       for (const field of schema.fields) {
         const val = lastEntry?.[field];
         const isEmpty = !val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0);
         if (isEmpty) {
-          return { section, field, arrayIndex: lastIdx, askAddMore: false };
+          return { section, field, arrayIndex: actualLastIdx, askAddMore: false };
         }
       }
 
-      // Last entry is complete — ask "add more?"
-      return { section, field: "addMore", arrayIndex: lastIdx, askAddMore: true };
+      // Last valid entry is complete — ask "add more?"
+      // But only if we're currently ON this section (not a section we already passed)
+      if (section === minSection || minSection === "personal") {
+        return { section, field: "addMore", arrayIndex: actualLastIdx, askAddMore: true };
+      }
+      // Otherwise, we already passed this section, move on
+      continue;
     }
   }
 
@@ -347,7 +363,8 @@ ${missingFieldsSummary}
 - ALWAYS call generate_response to produce your reply.
 - Call update_resume_fields BEFORE generate_response if the user provided any data.
 - In generate_response, set nextSection and nextField to match CURRENT FOCUS (or the next focus if current was just completed).
-- For array sections (education, experience, projects, publications), use arrayIndex to target the right entry. Use 0 for the first entry, 1 for the second, etc. Use -1 to add a NEW entry.
+- For array sections (education, experience, projects, publications), use the arrayIndex shown in CURRENT FOCUS above. Do NOT use -1 unless the user explicitly wants to add a BRAND NEW entry. Always update the existing entry being discussed.
+- CRITICAL: When the user provides additional info about the SAME entry (e.g., highlights for the project you just asked about), use the SAME arrayIndex, NOT -1.
 - For skills.languages and skills.technologies, provide arrays of strings.
 - For achievements, use section="achievements", field="list", value=[array of achievement strings].
 
@@ -516,10 +533,20 @@ class AgenticResumeAgent {
 
           let targetIndex = arrayIndex;
 
-          // -1 means add new entry
+          // -1 means add new entry — but check if the last entry is mostly empty first (dedup guard)
           if (targetIndex === -1) {
-            resumeData[section].push({});
-            targetIndex = resumeData[section].length - 1;
+            const lastEntry = resumeData[section][resumeData[section].length - 1];
+            const hasRequiredData = lastEntry && schema.required.some(req =>
+              lastEntry[req] && String(lastEntry[req]).trim() !== ""
+            );
+
+            if (lastEntry && !hasRequiredData) {
+              // Last entry is mostly empty — reuse it instead of creating a new one
+              targetIndex = resumeData[section].length - 1;
+            } else {
+              resumeData[section].push({});
+              targetIndex = resumeData[section].length - 1;
+            }
           }
 
           // Ensure entry exists at index
@@ -541,9 +568,9 @@ class AgenticResumeAgent {
   // ─────────────────────────────────────────────────────────────────
   // PROCESS MESSAGE (Core agentic method)
   // ─────────────────────────────────────────────────────────────────
-  async processMessage(userMessage, resumeData, conversationHistory = []) {
+  async processMessage(userMessage, resumeData, conversationHistory = [], currentSection = "personal") {
     const missingFields = this.analyzeMissingFields(resumeData);
-    const currentFocus = computeCurrentFocus(resumeData);
+    const currentFocus = computeCurrentFocus(resumeData, currentSection);
 
     const systemPrompt = buildSystemPrompt(resumeData, missingFields, currentFocus);
 
@@ -627,9 +654,15 @@ class AgenticResumeAgent {
         }
       }
 
-      // Recompute focus after updates were applied
+      // Recompute focus after updates were applied (use the UPDATED section as floor)
       if (wasUpdate) {
-        const newFocus = computeCurrentFocus(updatedData);
+        // The new minimum is whichever is further: the LLM's nextSection or the current section
+        const updatedMinIdx = Math.max(
+          SECTION_ORDER.indexOf(currentSection),
+          SECTION_ORDER.indexOf(nextSection)
+        );
+        const updatedMin = SECTION_ORDER[Math.max(0, updatedMinIdx)] || currentSection;
+        const newFocus = computeCurrentFocus(updatedData, updatedMin);
         nextSection = newFocus.section;
         nextField = newFocus.field;
         isComplete = newFocus.section === "complete";

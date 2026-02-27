@@ -188,7 +188,8 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     const result = await agent.processMessage(
       message,
       currentData,
-      conversationHistory
+      conversationHistory,
+      resume.conversationState?.currentSection || "personal"
     );
 
     // Merge updated data back into resume
@@ -285,7 +286,8 @@ export const updateResumeData = asyncHandler(async (req, res) => {
   const result = await agent.processMessage(
     updateRequest,
     currentData,
-    resume.chatHistory.map(msg => ({ role: msg.role, content: msg.content }))
+    resume.chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
+    resume.conversationState?.currentSection || "personal"
   );
 
   // Apply updates
