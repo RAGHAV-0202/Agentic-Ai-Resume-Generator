@@ -719,6 +719,20 @@ class AgenticResumeAgent {
       nextQuestion = this._generateBasicQuestion(this.analyzeMissingFields(updatedData));
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // HARD FLOOR GUARD — Never go backwards, no matter what the LLM says
+    // ═══════════════════════════════════════════════════════════════
+    const currentIdx = SECTION_ORDER.indexOf(currentSection);
+    const resultIdx = SECTION_ORDER.indexOf(nextSection);
+    if (currentIdx >= 0 && resultIdx >= 0 && resultIdx < currentIdx) {
+      // LLM tried to go backwards — clamp to current section or forward
+      const correctedFocus = computeCurrentFocus(updatedData, currentSection);
+      nextSection = correctedFocus.section;
+      nextField = correctedFocus.field;
+      isComplete = correctedFocus.section === "complete";
+      console.log(`⚠️  Floor guard: LLM tried to go back to ${SECTION_ORDER[resultIdx]}, clamped to ${nextSection}`);
+    }
+
     return {
       updatedData,
       extractedFields,
