@@ -578,6 +578,51 @@ class AgenticResumeAgent {
     const missingFields = this.analyzeMissingFields(resumeData);
     const currentFocus = computeCurrentFocus(resumeData, currentSection);
 
+    // ─────────────────────────────────────────────────────────────
+    // PRE-LLM SKIP DETECTION — Handle skip/no/pass without API call
+    // ─────────────────────────────────────────────────────────────
+    const skipPatterns = /^(skip|no|pass|none|nope|n\/a|na|don'?t have|no thanks|next|move on)$/i;
+    const trimmedMsg = userMessage.trim();
+
+    if (skipPatterns.test(trimmedMsg)) {
+      // For "add more?" prompts — user says no, advance to next section
+      if (currentFocus.askAddMore) {
+        const nextSectionIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
+        const nextSec = nextSectionIdx < SECTION_ORDER.length ? SECTION_ORDER[nextSectionIdx] : "complete";
+        const nextFocus = computeCurrentFocus(resumeData, nextSec);
+
+        return {
+          updatedData: resumeData,
+          extractedFields: [],
+          nextQuestion: nextFocus.section === "complete"
+            ? "🎉 Your resume looks complete! Would you like to make any edits?"
+            : this._generateBasicQuestion([{ section: nextFocus.section, field: nextFocus.field, required: true, description: "" }]),
+          nextSection: nextFocus.section,
+          nextField: nextFocus.field,
+          isComplete: nextFocus.section === "complete",
+          wasUpdate: false
+        };
+      }
+
+      // For regular field skips — advance to next field in current section
+      // Temporarily mark the field as "skipped" by moving the focus forward
+      const nextFocus = this._computeNextFieldAfterSkip(resumeData, currentFocus, currentSection);
+
+      return {
+        updatedData: resumeData,
+        extractedFields: [],
+        nextQuestion: nextFocus.askAddMore
+          ? `Would you like to add another ${nextFocus.section.replace(/s$/, '')} entry?`
+          : nextFocus.section === "complete"
+            ? "🎉 Your resume looks complete! Would you like to make any edits or add more details?"
+            : this._generateBasicQuestion([{ section: nextFocus.section, field: nextFocus.field, required: true, description: "" }]),
+        nextSection: nextFocus.section,
+        nextField: nextFocus.field,
+        isComplete: nextFocus.section === "complete",
+        wasUpdate: false
+      };
+    }
+
     const systemPrompt = buildSystemPrompt(resumeData, missingFields, currentFocus);
 
     // Build messages for LLM
@@ -757,17 +802,77 @@ class AgenticResumeAgent {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // SKIP NAVIGATION HELPER
+  // ─────────────────────────────────────────────────────────────────
+  _computeNextFieldAfterSkip(resumeData, currentFocus, currentSection) {
+    const schema = RESUME_SCHEMA[currentFocus.section];
+    if (!schema) {
+      // Move to next section
+      const nextIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
+      const nextSec = nextIdx < SECTION_ORDER.length ? SECTION_ORDER[nextIdx] : "complete";
+      return computeCurrentFocus(resumeData, nextSec);
+    }
+
+    if (schema.type === "object") {
+      // Find the next field after the current one
+      const fieldIdx = schema.fields.indexOf(currentFocus.field);
+      if (fieldIdx >= 0 && fieldIdx < schema.fields.length - 1) {
+        // Check remaining fields in this section
+        for (let i = fieldIdx + 1; i < schema.fields.length; i++) {
+          const val = resumeData?.[currentFocus.section]?.[schema.fields[i]];
+          if (!val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0)) {
+            return { section: currentFocus.section, field: schema.fields[i], arrayIndex: 0, askAddMore: false };
+          }
+        }
+      }
+      // All fields in this object section done, move to next section
+      const nextIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
+      const nextSec = nextIdx < SECTION_ORDER.length ? SECTION_ORDER[nextIdx] : "complete";
+      return computeCurrentFocus(resumeData, nextSec);
+    }
+
+    if (schema.type === "array") {
+      // Find the next field in the current entry
+      const fieldIdx = schema.fields.indexOf(currentFocus.field);
+      if (fieldIdx >= 0 && fieldIdx < schema.fields.length - 1) {
+        const entry = resumeData?.[currentFocus.section]?.[currentFocus.arrayIndex];
+        for (let i = fieldIdx + 1; i < schema.fields.length; i++) {
+          const val = entry?.[schema.fields[i]];
+          if (!val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0)) {
+            return { section: currentFocus.section, field: schema.fields[i], arrayIndex: currentFocus.arrayIndex, askAddMore: false };
+          }
+        }
+        // All fields in this entry done — ask "add more?"
+        return { section: currentFocus.section, field: "addMore", arrayIndex: currentFocus.arrayIndex, askAddMore: true };
+      }
+      // Current field not found — just ask "add more?"
+      return { section: currentFocus.section, field: "addMore", arrayIndex: currentFocus.arrayIndex, askAddMore: true };
+    }
+
+    // Achievements or unknown — move to next section
+    const nextIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
+    const nextSec = nextIdx < SECTION_ORDER.length ? SECTION_ORDER[nextIdx] : "complete";
+    return computeCurrentFocus(resumeData, nextSec);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // FALLBACK RESPONSES
   // ─────────────────────────────────────────────────────────────────
-  _fallbackResponse(userMessage, resumeData, missingFields) {
-    const question = this._generateBasicQuestion(missingFields);
+  _fallbackResponse(userMessage, resumeData, missingFields, currentSection = "personal") {
+    const focus = computeCurrentFocus(resumeData, currentSection);
+    const question = focus.section === "complete"
+      ? "🎉 Your resume looks complete! Would you like to make any edits?"
+      : focus.askAddMore
+        ? `Would you like to add another ${focus.section.replace(/s$/, '')} entry?`
+        : this._generateBasicQuestion([{ section: focus.section, field: focus.field, required: true, description: "" }]);
+
     return {
       updatedData: resumeData,
       extractedFields: [],
-      nextQuestion: `I had a brief hiccup processing that. ${question}`,
-      nextSection: missingFields[0]?.section || "personal",
-      nextField: missingFields[0]?.field || "name",
-      isComplete: false,
+      nextQuestion: question,
+      nextSection: focus.section,
+      nextField: focus.field,
+      isComplete: focus.section === "complete",
       wasUpdate: false
     };
   }
@@ -789,15 +894,33 @@ class AgenticResumeAgent {
       "personal.github": "Do you have a GitHub profile? (or type 'skip')",
       "personal.website": "Do you have a personal website? (or type 'skip')",
       "education.first_entry": "🎓 Let's add your education! What university did you attend?",
-      "experience.first_entry": "💼 Now let's add work experience! What company did you work for?",
-      "projects.first_entry": "🚀 Want to showcase any projects?",
+      "education.institution": "What institution did you study at?",
+      "education.degree": "What degree did you earn?",
+      "education.startDate": "When did you start? (month and year)",
+      "education.endDate": "When did you finish? (month and year, or 'Present')",
+      "education.gpa": "What was your GPA? (or type 'skip')",
+      "education.coursework": "Any relevant coursework? (or type 'skip')",
+      "experience.first_entry": "💼 Let's add work experience! What company did you work for?",
+      "experience.company": "What company did you work for?",
+      "experience.position": "What was your position?",
+      "experience.location": "Where was the company located?",
+      "experience.startDate": "When did you start?",
+      "experience.endDate": "When did you finish?",
+      "experience.highlights": "Describe your key contributions (2-3 bullet points)",
+      "projects.first_entry": "🚀 Let's showcase your projects! What's the project name?",
+      "projects.name": "What's the project name?",
+      "projects.link": "Do you have a link for this project? (or type 'skip')",
+      "projects.date": "When did you work on this project?",
+      "projects.highlights": "Describe what you built (2-3 bullet points)",
+      "projects.technologies": "What technologies did you use?",
       "skills.languages": "💻 What programming languages do you know?",
       "skills.technologies": "What frameworks and technologies do you use?",
       "achievements.list": "🏆 Any achievements, awards, or certifications? (or type 'skip')",
+      "publications.first_entry": "📄 Any publications? (or type 'skip')",
     };
 
     const key = `${target.section}.${target.field}`;
-    return questionMap[key] || `Could you tell me about your ${target.field} (${target.section} section)?`;
+    return questionMap[key] || `Could you tell me about your ${target.field}? (or type 'skip')`;
   }
 }
 
