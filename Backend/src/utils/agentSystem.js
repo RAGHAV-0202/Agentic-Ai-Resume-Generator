@@ -299,7 +299,7 @@ const computeCurrentFocus = (resumeData, minSection = "personal") => {
 
       // Last valid entry is complete — ask "add more?"
       // But only if we're currently ON this section (not a section we already passed)
-      if (section === minSection || minSection === "personal") {
+      if (section === minSection) {
         return { section, field: "addMore", arrayIndex: actualLastIdx, askAddMore: true };
       }
       // Otherwise, we already passed this section, move on
@@ -613,6 +613,28 @@ class AgenticResumeAgent {
     const skipPatterns = /^(skip|no|pass|none|nope|n\/a|na|don'?t have|no thanks|next|move on)$/i;
     const trimmedMsg = userMessage.trim();
 
+    // Handle "yes" to add-more prompts programmatically
+    const yesPatterns = /^(yes|yeah|yep|sure|ok|okay|y|yea|absolutely|of course|add more|yes please)$/i;
+    if (yesPatterns.test(trimmedMsg) && currentFocus.askAddMore) {
+      console.log(`🔀 Yes to addMore: creating new ${currentFocus.section} entry`);
+      // Create a new empty entry and ask for the first field
+      if (!resumeData[currentFocus.section]) resumeData[currentFocus.section] = [];
+      resumeData[currentFocus.section].push({});
+      const newIdx = resumeData[currentFocus.section].length - 1;
+      const schema = RESUME_SCHEMA[currentFocus.section];
+      const firstField = schema?.fields?.[0] || "name";
+
+      return {
+        updatedData: resumeData,
+        extractedFields: [],
+        nextQuestion: this._generateBasicQuestion([{ section: currentFocus.section, field: firstField, required: true, description: "" }]),
+        nextSection: currentFocus.section,
+        nextField: firstField,
+        isComplete: false,
+        wasUpdate: false
+      };
+    }
+
     if (skipPatterns.test(trimmedMsg)) {
       console.log(`🔀 Skip detected: "${trimmedMsg}" | currentSection: ${currentSection} | focus: ${currentFocus.section}.${currentFocus.field} | askAddMore: ${currentFocus.askAddMore}`);
 
@@ -747,8 +769,8 @@ class AgenticResumeAgent {
 
         } else if (fnName === "generate_response") {
           nextQuestion = args.message || "";
-          nextSection = args.nextSection || "personal";
-          nextField = args.nextField || "name";
+          nextSection = args.nextSection || currentFocus.section;
+          nextField = args.nextField || currentFocus.field;
           isComplete = args.isComplete || false;
 
           toolResults.push({
@@ -774,6 +796,8 @@ class AgenticResumeAgent {
       }
 
       // If we got updates but no generate_response, do a follow-up call
+      // NOTE: We only use the LLM's MESSAGE from the follow-up, NOT its
+      // nextSection/nextField — the recompute above already set those correctly.
       if (wasUpdate && !nextQuestion) {
         try {
           const followUpMessages = [
@@ -789,8 +813,9 @@ class AgenticResumeAgent {
               if (tc.function.name === "generate_response") {
                 const fArgs = JSON.parse(tc.function.arguments);
                 nextQuestion = fArgs.message || "";
-                nextSection = fArgs.nextSection || nextSection;
-                nextField = fArgs.nextField || nextField;
+                // DO NOT override nextSection/nextField from follow-up —
+                // the recompute (lines above) already set them correctly.
+                // The LLM tends to skip fields (e.g., GitHub → website).
                 isComplete = fArgs.isComplete || false;
               }
             }
@@ -802,8 +827,9 @@ class AgenticResumeAgent {
           }
         } catch (err) {
           console.error("Follow-up call failed:", err.message);
-          // Generate a basic question from missing fields
-          nextQuestion = this._generateBasicQuestion(this.analyzeMissingFields(updatedData));
+          // Generate a basic question from the current focus
+          const focus = computeCurrentFocus(updatedData, currentSection);
+          nextQuestion = this._generateBasicQuestion([{ section: focus.section, field: focus.field, required: true, description: "" }]);
         }
       }
     }
@@ -813,9 +839,12 @@ class AgenticResumeAgent {
       nextQuestion = response.content;
     }
 
-    // Final fallback
+    // Final fallback — use currentSection-aware focus
     if (!nextQuestion) {
-      nextQuestion = this._generateBasicQuestion(this.analyzeMissingFields(updatedData));
+      const fallbackFocus = computeCurrentFocus(updatedData, currentSection);
+      nextQuestion = fallbackFocus.section === "complete"
+        ? "🎉 Your resume looks complete! Would you like to make any edits?"
+        : this._generateBasicQuestion([{ section: fallbackFocus.section, field: fallbackFocus.field, required: true, description: "" }]);
     }
 
     // ═══════════════════════════════════════════════════════════════
