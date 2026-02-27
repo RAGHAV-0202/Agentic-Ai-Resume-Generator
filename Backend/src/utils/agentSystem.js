@@ -22,10 +22,16 @@ import fetch from "node-fetch";
 // GROQ CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
 const GROQ_MODELS = [
-  "llama-3.3-70b-versatile",
+  "openai/gpt-oss-120b",      // Primary — OpenAI GPT OSS 120B (30 req/min, 8K tok/min)
+  "llama-3.3-70b-versatile",   // Fallback — Meta Llama 3.3 70B (30 req/min, 12K tok/min)
 ];
 
-const getModel = () => GROQ_MODELS[0];
+let modelIndex = 0;
+const getModel = () => {
+  const model = GROQ_MODELS[modelIndex % GROQ_MODELS.length];
+  modelIndex++;
+  return model;
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // COMPLETE RESUME SCHEMA
