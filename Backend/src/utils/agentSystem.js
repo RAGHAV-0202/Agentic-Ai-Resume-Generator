@@ -1,31 +1,34 @@
 /**
  * ═══════════════════════════════════════════════════════════════════
- * PRODUCTION-READY INTELLIGENT RESUME AGENT SYSTEM
+ * TRUE AGENTIC RESUME SYSTEM — LLM Tool-Use Architecture
  * ═══════════════════════════════════════════════════════════════════
- * 
- * Features:
- * ✓ Asks ALL questions systematically
- * ✓ Never replaces existing entries - proper array management
- * ✓ Smart extraction from conversational input
- * ✓ Mock data for preview on session creation
- * ✓ Comprehensive field coverage from model
- * ✓ Production-grade error handling
+ *
+ * Unlike a linear questionnaire, this agent uses the LLM as the
+ * "brain" — it decides what to extract, what to update, and what
+ * to ask next via tool-calling (function-calling).
+ *
+ * Capabilities:
+ * ✓ Multi-field extraction from a single message
+ * ✓ Out-of-order field filling (experience while asking for LinkedIn)
+ * ✓ Natural language updates ("update my email to X")
+ * ✓ Intelligent question generation based on missing fields
+ * ✓ ATS-optimized bullet point enhancement
+ * ✓ Conversational, context-aware interaction
  */
 
 import fetch from "node-fetch";
 
 // ═══════════════════════════════════════════════════════════════════
-// VALIDATED GROQ MODELS
+// GROQ CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
 const GROQ_MODELS = [
   "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant"
 ];
 
-const getModel = () => GROQ_MODELS[Math.floor(Math.random() * GROQ_MODELS.length)];
+const getModel = () => GROQ_MODELS[0];
 
 // ═══════════════════════════════════════════════════════════════════
-// COMPLETE RESUME SCHEMA (From Resume Model)
+// COMPLETE RESUME SCHEMA
 // ═══════════════════════════════════════════════════════════════════
 const RESUME_SCHEMA = {
   personal: {
@@ -133,81 +136,160 @@ const MOCK_PREVIEW_DATA = {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// INTELLIGENT QUESTION TEMPLATES
+// TOOL DEFINITIONS FOR LLM
 // ═══════════════════════════════════════════════════════════════════
-const QUESTION_TEMPLATES = {
-  personal: {
-    name: "👋 Hi! I'm your AI Resume Assistant. Let's build an amazing resume together! First, what's your full name?",
-    location: "Great! Where are you currently located? (City, State/Country)",
-    email: "What's your professional email address?",
-    phone: "What's the best phone number to reach you at?",
-    linkedin: "Do you have a LinkedIn profile? (Enter the URL or username, or type 'skip')",
-    github: "How about a GitHub profile? Great for showcasing your code! (URL or type 'skip')",
-    website: "Do you have a personal website or portfolio? (URL or type 'skip')"
+
+const AGENT_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "update_resume_fields",
+      description: `Extract and update one or more resume fields from the user's message. 
+Call this tool to save ANY information the user provides, even if it's for a different section than what was asked.
+You can update multiple fields across multiple sections in a single call.
+For bullet-point fields (highlights, coursework, technologies, authors, achievements), provide arrays.
+For achievements, provide the full list of achievements as an array of strings.
+IMPORTANT: For highlights (experience/project descriptions), optimize for ATS with strong action verbs and quantifiable metrics.`,
+      parameters: {
+        type: "object",
+        properties: {
+          updates: {
+            type: "array",
+            description: "List of field updates to apply",
+            items: {
+              type: "object",
+              properties: {
+                section: {
+                  type: "string",
+                  enum: ["personal", "education", "experience", "projects", "skills", "achievements", "publications"],
+                  description: "Which resume section to update"
+                },
+                field: {
+                  type: "string",
+                  description: "Which field within the section to update (e.g., 'name', 'company', 'languages'). For achievements, use 'list'."
+                },
+                value: {
+                  description: "The extracted value. String for simple fields, array of strings for list fields (highlights, coursework, technologies, languages, achievements list, etc.)"
+                },
+                arrayIndex: {
+                  type: "integer",
+                  description: "For array sections (education, experience, projects, publications), which entry index to update (0-based). Use -1 to ADD a new entry. Default 0.",
+                  default: 0
+                }
+              },
+              required: ["section", "field", "value"]
+            }
+          }
+        },
+        required: ["updates"]
+      }
+    }
   },
-  education: {
-    institution: "🎓 Let's talk about your education! What university or college did you attend?",
-    degree: "What degree did you earn? (e.g., Bachelor of Science in Computer Science)",
-    startDate: "When did you start this degree? (Year is fine, like 2019)",
-    endDate: "When did you graduate or when do you expect to? (Year or 'Present')",
-    gpa: "What was your GPA? (Optional - type 'skip' if you prefer not to include)",
-    coursework: "Any relevant coursework you'd like to highlight? (Separate with commas, or 'skip')"
-  },
-  experience: {
-    company: "💼 Now let's add your work experience! What company did you work for?",
-    position: "What was your job title or position?",
-    location: "Where was this job located? (City, State or 'Remote')",
-    startDate: "When did you start this position? (e.g., June 2022)",
-    endDate: "When did you finish? (Use 'Present' if you're still there)",
-    highlights: "Tell me about your key achievements or responsibilities (2-4 points, separate with commas or new lines)"
-  },
-  projects: {
-    name: "🚀 Let's showcase your projects! What's the name of a project you're proud of?",
-    link: "Do you have a link to this project? (GitHub repo, live demo, etc. or 'skip')",
-    date: "When did you work on this? (Year is fine)",
-    highlights: "What did this project do? Describe its purpose and your contribution (1-2 sentences)",
-    technologies: "What technologies did you use? (e.g., React, Python, AWS - separate with commas)"
-  },
-  skills: {
-    languages: "💻 What programming languages are you proficient in? (e.g., Python, JavaScript, Java)",
-    technologies: "What frameworks, tools, and technologies do you know? (e.g., React, Docker, AWS)"
-  },
-  achievements: {
-    list: "🏆 Any notable achievements, awards, or certifications? (e.g., hackathon wins, scholarships - separate with commas, or 'skip')"
-  },
-  publications: {
-    title: "📄 Do you have any publications or research papers? If yes, what's the title?",
-    authors: "Who are the authors? (Include yourself, separate with commas)",
-    date: "When was it published? (Year or Month Year)",
-    doi: "What's the DOI or publication link? (Optional - type 'skip' if not applicable)"
+  {
+    type: "function",
+    function: {
+      name: "generate_response",
+      description: `Generate the AI's response message and determine what to ask next.
+Always call this tool AFTER update_resume_fields (if there were updates).
+Use the missing fields context to decide what to ask about next.
+Be conversational, encouraging, and specific.`,
+      parameters: {
+        type: "object",
+        properties: {
+          message: {
+            type: "string",
+            description: "The AI's response message to the user. Should acknowledge what was captured, and ask the next relevant question. Be warm and conversational."
+          },
+          nextSection: {
+            type: "string",
+            enum: ["personal", "education", "experience", "projects", "skills", "achievements", "publications", "complete"],
+            description: "Which section the next question is about. Use 'complete' if all required sections are filled."
+          },
+          nextField: {
+            type: "string",
+            description: "Which specific field the next question targets. Use 'complete' if done."
+          },
+          isComplete: {
+            type: "boolean",
+            description: "True if all required resume sections have sufficient data (personal info, at least 1 education, at least 1 experience or project, and skills)."
+          }
+        },
+        required: ["message", "nextSection", "nextField", "isComplete"]
+      }
+    }
   }
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// SYSTEM PROMPT
+// ═══════════════════════════════════════════════════════════════════
+
+const buildSystemPrompt = (resumeData, missingFields) => {
+  const missingFieldsSummary = missingFields.length > 0
+    ? missingFields.map(f => `- ${f.section}.${f.field} ${f.required ? "(REQUIRED)" : "(optional)"}: ${f.description}`).join("\n")
+    : "All required fields are filled! Check if user wants to add more or make edits.";
+
+  return `You are "ResumeAI", an expert career coach and AI resume assistant. You help users build professional, ATS-optimized resumes through natural conversation.
+
+## YOUR BEHAVIOR
+1. **Extract everything** — If a user gives multiple pieces of info in one message, extract ALL of them using update_resume_fields. Don't ignore data just because you didn't ask for it.
+2. **Accept out-of-order input** — If you asked about LinkedIn but the user talks about their work experience, capture the experience data anyway. Don't force them back to LinkedIn.
+3. **Handle updates** — If the user says "change my email to X" or "update my name", update the field immediately.
+4. **Handle skips** — If the user says "skip", "pass", "no", "don't have one", move to the next field/section. DON'T call update_resume_fields for skipped fields.
+5. **Be conversational** — Acknowledge what you captured, provide encouragement, and ask natural follow-up questions.
+6. **ATS optimization** — For experience/project highlights, enhance weak descriptions with strong action verbs (Developed, Engineered, Spearheaded, Optimized, etc.) and quantifiable metrics when possible. But keep the user's original meaning.
+7. **Smart questioning** — Focus on REQUIRED missing fields first, then optional ones. Don't re-ask fields already filled.
+8. **Completion** — Mark isComplete=true ONLY when these are all filled: personal (name, email, phone), at least 1 education entry, at least 1 experience OR project, and skills (languages + technologies).
+
+## RESUME SCHEMA
+${JSON.stringify(RESUME_SCHEMA, null, 2)}
+
+## CURRENT RESUME DATA
+${JSON.stringify(resumeData, null, 2)}
+
+## MISSING FIELDS
+${missingFieldsSummary}
+
+## TOOL USAGE
+- ALWAYS call generate_response to produce your reply.
+- Call update_resume_fields BEFORE generate_response if the user provided any data.
+- For array sections (education, experience, projects, publications), use arrayIndex to target the right entry. Use 0 for the first entry, 1 for the second, etc. Use -1 to add a NEW entry.
+- For skills.languages and skills.technologies, provide arrays of strings.
+- For achievements, use section="achievements", field="list", value=[array of achievement strings].
+
+## IMPORTANT RULES
+- NEVER invent or hallucinate data. Only save what the user explicitly provides.
+- NEVER ask for a field that's already filled unless the user wants to update it.
+- When asking "would you like to add more?", if user says no, move to the next section.
+- Keep your messages concise but friendly. Use emojis sparingly.`;
 };
 
 // ═══════════════════════════════════════════════════════════════════
 // MAIN AGENT CLASS
 // ═══════════════════════════════════════════════════════════════════
-class IntelligentResumeAgent {
+
+class AgenticResumeAgent {
   constructor(apiKey) {
     this.apiKey = apiKey;
     this.API_URL = "https://api.groq.com/openai/v1/chat/completions";
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // GROQ API CALL
+  // GROQ API CALL (with tool support)
   // ─────────────────────────────────────────────────────────────────
-  async callGroq(messages, tools = null, maxRetries = 2) {
+  async callGroq(messages, tools = null, toolChoice = "auto", maxRetries = 2) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const payload = {
           model: getModel(),
           messages,
           temperature: 0.3,
-          max_tokens: 1500
+          max_tokens: 2000
         };
 
         if (tools) {
           payload.tools = tools;
-          payload.tool_choice = "required";
+          payload.tool_choice = toolChoice;
         }
 
         const response = await fetch(this.API_URL, {
@@ -220,13 +302,14 @@ class IntelligentResumeAgent {
         });
 
         if (!response.ok) {
-          throw new Error(`API Error: ${response.status}`);
+          const errBody = await response.text();
+          throw new Error(`API Error ${response.status}: ${errBody}`);
         }
 
         const data = await response.json();
         return data.choices[0].message;
       } catch (error) {
-        console.error(`Attempt ${attempt + 1} failed:`, error.message);
+        console.error(`Groq attempt ${attempt + 1} failed:`, error.message);
         if (attempt === maxRetries) throw error;
         await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
       }
@@ -234,254 +317,275 @@ class IntelligentResumeAgent {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // SMART DATA EXTRACTION
+  // ANALYZE MISSING FIELDS
   // ─────────────────────────────────────────────────────────────────
-  async extractData(userMessage, field, section, arrayIndex = 0) {
-    const isArrayField = RESUME_SCHEMA[section]?.arrayFields?.includes(field);
+  analyzeMissingFields(resumeData) {
+    const missing = [];
 
-    const extractionPrompt = `Extract the "${field}" value from this message: "${userMessage}"
-
-Context: Section is "${section}", Field is "${field}"
-
-Rules:
-1. Extract ONLY the ${field} value
-2. Remove conversational fluff like "My ${field} is", "I worked at", etc.
-3. ${isArrayField ? `This is an array field. Split by commas or newlines and return as array.` : `Return as plain text.`}
-4. If user says "skip", "pass", "none", "n/a" → return "SKIP"
-5. Be smart - extract from natural language
-
-Examples:
-"My name is John Smith" → "John Smith"
-"I go to MIT" → "MIT"
-"I know Python, JavaScript, and Java" → ["Python", "JavaScript", "Java"]
-"skip" → "SKIP"
-
-Extract now (return JSON):`;
-
-    const tools = [{
-      type: "function",
-      function: {
-        name: "extract_field",
-        description: "Extract specific field value from user message",
-        parameters: {
-          type: "object",
-          properties: {
-            value: {
-              type: isArrayField ? "array" : "string",
-              description: `The extracted ${field} value`
-            },
-            is_skip: {
-              type: "boolean",
-              description: "True if user wants to skip this field"
-            }
-          },
-          required: ["value", "is_skip"]
-        }
-      }
-    }];
-
-    try {
-      const response = await this.callGroq(
-        [{ role: "user", content: extractionPrompt }],
-        tools
-      );
-
-      if (response.tool_calls?.[0]) {
-        const result = JSON.parse(response.tool_calls[0].function.arguments);
-        if (result.is_skip) return { skip: true };
-        return { value: result.value, skip: false };
-      }
-    } catch (error) {
-      console.error("Extraction failed:", error);
-    }
-
-    // Fallback: basic extraction
-    if (/^(skip|pass|none|n\/?a)$/i.test(userMessage.trim())) {
-      return { skip: true };
-    }
-
-    return { value: userMessage.trim(), skip: false };
-  }
-
-  // ─────────────────────────────────────────────────────────────────
-  // GET NEXT QUESTION
-  // ─────────────────────────────────────────────────────────────────
-  getNextField(currentSection, currentField, resumeData) {
-    const schema = RESUME_SCHEMA[currentSection];
-    if (!schema) return null;
-
-    const fields = schema.fields;
-    const currentIndex = fields.indexOf(currentField);
-
-    // Check if current section is array type
-    if (schema.type === "array") {
-      const arrayData = resumeData[currentSection] || [];
-      const currentArrayIndex = arrayData.length > 0 ? arrayData.length - 1 : 0;
-      const currentEntry = arrayData[currentArrayIndex] || {};
-
-      // Find next missing field in current entry
-      for (let i = currentIndex + 1; i < fields.length; i++) {
-        const nextField = fields[i];
-        if (!currentEntry[nextField] || currentEntry[nextField] === "") {
-          return {
-            section: currentSection,
-            field: nextField,
-            arrayIndex: currentArrayIndex,
-            question: QUESTION_TEMPLATES[currentSection][nextField]
-          };
-        }
-      }
-
-      // Current entry complete - ask to add more
-      if (currentField === fields[fields.length - 1]) {
-        return {
-          section: currentSection,
-          field: "addMore",
-          arrayIndex: currentArrayIndex,
-          question: `Great! Would you like to add another ${currentSection.slice(0, -1)}? (Yes/No)`
-        };
+    // Personal section
+    const personalRequired = RESUME_SCHEMA.personal.required;
+    for (const field of RESUME_SCHEMA.personal.fields) {
+      const value = resumeData?.personal?.[field];
+      if (!value || (typeof value === "string" && value.trim() === "")) {
+        missing.push({
+          section: "personal",
+          field,
+          required: personalRequired.includes(field),
+          description: `Your ${field}`
+        });
       }
     }
 
-    // Move to next field in current section
-    if (currentIndex < fields.length - 1) {
-      const nextField = fields[currentIndex + 1];
-      return {
-        section: currentSection,
-        field: nextField,
-        arrayIndex: 0,
-        question: QUESTION_TEMPLATES[currentSection][nextField]
-      };
-    }
+    // Array sections
+    const arraySections = ["education", "experience", "projects", "publications"];
+    for (const section of arraySections) {
+      const entries = resumeData?.[section] || [];
+      const validEntries = entries.filter(e => {
+        if (!e || typeof e !== "object") return false;
+        const firstRequired = RESUME_SCHEMA[section].required[0];
+        return firstRequired && e[firstRequired] && String(e[firstRequired]).trim() !== "";
+      });
 
-    // Move to next section
-    const sections = Object.keys(RESUME_SCHEMA);
-    const sectionIndex = sections.indexOf(currentSection);
-
-    if (sectionIndex < sections.length - 1) {
-      const nextSection = sections[sectionIndex + 1];
-      const firstField = RESUME_SCHEMA[nextSection].fields[0];
-      return {
-        section: nextSection,
-        field: firstField,
-        arrayIndex: 0,
-        question: QUESTION_TEMPLATES[nextSection][firstField]
-      };
-    }
-
-    // All done!
-    return {
-      section: "complete",
-      field: "complete",
-      arrayIndex: 0,
-      question: "🎉 Congratulations! Your resume is complete. You can now download it or make any edits!"
-    };
-  }
-
-  // ─────────────────────────────────────────────────────────────────
-  // PROCESS USER MESSAGE
-  // ─────────────────────────────────────────────────────────────────
-  async processMessage(userMessage, currentState, resumeData) {
-    const { currentSection, currentField, currentArrayIndex } = currentState;
-
-    // Handle "addMore" response
-    if (currentField === "addMore") {
-      const isYes = /^(yes|yeah|yep|sure|ok|okay|y)$/i.test(userMessage.trim());
-
-      if (isYes) {
-        // Create NEW empty entry in array
-        const schema = RESUME_SCHEMA[currentSection];
-        const newEntry = schema.isSimpleList ? "" : {};
-        resumeData[currentSection].push(newEntry);
-
-        // Move to first field of new entry
-        const firstField = RESUME_SCHEMA[currentSection].fields[0];
-        const newIndex = resumeData[currentSection].length - 1;
-
-        return {
-          resumeData,
-          nextQuestion: QUESTION_TEMPLATES[currentSection][firstField],
-          nextSection: currentSection,
-          nextField: firstField,
-          nextArrayIndex: newIndex,
-          extracted: null
-        };
+      if (validEntries.length === 0) {
+        const isRequired = ["education", "experience"].includes(section);
+        missing.push({
+          section,
+          field: "first_entry",
+          required: isRequired,
+          description: `Add your first ${section} entry`
+        });
       } else {
-        // user said NO to addMore -> Move to NEXT SECTION
-        const sections = Object.keys(RESUME_SCHEMA);
-        const sectionIndex = sections.indexOf(currentSection);
-
-        if (sectionIndex < sections.length - 1) {
-          const nextSection = sections[sectionIndex + 1];
-          const firstField = RESUME_SCHEMA[nextSection].fields[0];
-          return {
-            resumeData,
-            nextQuestion: QUESTION_TEMPLATES[nextSection][firstField],
-            nextSection: nextSection,
-            nextField: firstField,
-            nextArrayIndex: 0,
-            extracted: null
-          };
-        } else {
-          // Complete
-          return {
-            resumeData,
-            nextQuestion: "🎉 Congratulations! Your resume is complete. You can now download it or make any edits!",
-            nextSection: "complete",
-            nextField: "complete",
-            nextArrayIndex: 0,
-            extracted: null
-          };
+        // Check last entry for incomplete fields
+        const lastEntry = validEntries[validEntries.length - 1];
+        for (const field of RESUME_SCHEMA[section].fields) {
+          const val = lastEntry[field];
+          const isEmpty = !val || (typeof val === "string" && val.trim() === "") || (Array.isArray(val) && val.length === 0);
+          if (isEmpty) {
+            missing.push({
+              section,
+              field,
+              required: RESUME_SCHEMA[section].required.includes(field),
+              description: `${field} for your ${section} entry "${lastEntry[RESUME_SCHEMA[section].fields[0]] || "current"}"`
+            });
+          }
         }
       }
     }
 
-    // Extract data from message
-    const extraction = await this.extractData(
-      userMessage,
-      currentField,
-      currentSection,
-      currentArrayIndex
-    );
+    // Skills
+    const languages = resumeData?.skills?.languages || [];
+    const technologies = resumeData?.skills?.technologies || [];
+    if (languages.length === 0) {
+      missing.push({ section: "skills", field: "languages", required: true, description: "Programming languages you know" });
+    }
+    if (technologies.length === 0) {
+      missing.push({ section: "skills", field: "technologies", required: true, description: "Frameworks and technologies you use" });
+    }
 
-    // Update resume data
-    if (!extraction.skip) {
-      const schema = RESUME_SCHEMA[currentSection];
+    // Achievements (optional)
+    const achievements = resumeData?.achievements || [];
+    if (achievements.length === 0) {
+      missing.push({ section: "achievements", field: "list", required: false, description: "Awards, certifications, or notable achievements" });
+    }
 
-      if (schema.type === "array") {
-        // Ensure array and entry exist
-        if (!resumeData[currentSection]) {
-          resumeData[currentSection] = [];
-        }
+    return missing;
+  }
 
-        // Ensure we have an entry at the current index
-        while (resumeData[currentSection].length <= currentArrayIndex) {
-          resumeData[currentSection].push(schema.isSimpleList ? "" : {});
-        }
+  // ─────────────────────────────────────────────────────────────────
+  // APPLY UPDATES TO RESUME DATA
+  // ─────────────────────────────────────────────────────────────────
+  applyUpdates(resumeData, updates) {
+    const extractedFields = [];
 
-        if (schema.isSimpleList) {
-          resumeData[currentSection][currentArrayIndex] = extraction.value;
-        } else {
-          resumeData[currentSection][currentArrayIndex][currentField] = extraction.value;
+    for (const update of updates) {
+      const { section, field, value, arrayIndex = 0 } = update;
+      const schema = RESUME_SCHEMA[section];
+      if (!schema) continue;
+
+      try {
+        if (section === "achievements") {
+          // Achievements are a flat array of strings
+          const newAchievements = Array.isArray(value) ? value : [value];
+          if (!resumeData.achievements) resumeData.achievements = [];
+          // Replace or append
+          resumeData.achievements = [...new Set([...resumeData.achievements, ...newAchievements])];
+          extractedFields.push({ section, field: "list", value: newAchievements });
+
+        } else if (schema.type === "object") {
+          // Personal, Skills
+          if (!resumeData[section]) resumeData[section] = {};
+          resumeData[section][field] = value;
+          extractedFields.push({ section, field, value });
+
+        } else if (schema.type === "array") {
+          // Education, Experience, Projects, Publications
+          if (!resumeData[section]) resumeData[section] = [];
+
+          let targetIndex = arrayIndex;
+
+          // -1 means add new entry
+          if (targetIndex === -1) {
+            resumeData[section].push({});
+            targetIndex = resumeData[section].length - 1;
+          }
+
+          // Ensure entry exists at index
+          while (resumeData[section].length <= targetIndex) {
+            resumeData[section].push({});
+          }
+
+          resumeData[section][targetIndex][field] = value;
+          extractedFields.push({ section, field, value, arrayIndex: targetIndex });
         }
-      } else if (schema.type === "object") {
-        if (!resumeData[currentSection]) {
-          resumeData[currentSection] = {};
-        }
-        resumeData[currentSection][currentField] = extraction.value;
+      } catch (err) {
+        console.error(`Failed to apply update ${section}.${field}:`, err.message);
       }
     }
 
-    // Get next question
-    const next = this.getNextField(currentSection, currentField, resumeData);
+    return { resumeData, extractedFields };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // PROCESS MESSAGE (Core agentic method)
+  // ─────────────────────────────────────────────────────────────────
+  async processMessage(userMessage, resumeData, conversationHistory = []) {
+    const missingFields = this.analyzeMissingFields(resumeData);
+
+    const systemPrompt = buildSystemPrompt(resumeData, missingFields);
+
+    // Build messages for LLM
+    const messages = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    // Add recent conversation history (last 10 messages for context)
+    const recentHistory = conversationHistory.slice(-10);
+    for (const msg of recentHistory) {
+      if (msg.role === "user" || msg.role === "assistant") {
+        messages.push({ role: msg.role, content: msg.content });
+      }
+    }
+
+    // Add current user message
+    messages.push({ role: "user", content: userMessage });
+
+    // Call LLM with tools
+    let response;
+    try {
+      response = await this.callGroq(messages, AGENT_TOOLS, "required");
+    } catch (error) {
+      console.error("LLM call failed:", error.message);
+      // Fallback: return a safe response
+      return this._fallbackResponse(userMessage, resumeData, missingFields);
+    }
+
+    // Process tool calls
+    let extractedFields = [];
+    let updatedData = { ...resumeData };
+    let nextQuestion = "";
+    let nextSection = "personal";
+    let nextField = "name";
+    let isComplete = false;
+    let wasUpdate = false;
+
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      // Collect tool results for multi-turn
+      const toolResults = [];
+
+      for (const toolCall of response.tool_calls) {
+        const fnName = toolCall.function.name;
+        let args;
+
+        try {
+          args = JSON.parse(toolCall.function.arguments);
+        } catch (e) {
+          console.error("Failed to parse tool arguments:", e.message);
+          continue;
+        }
+
+        if (fnName === "update_resume_fields") {
+          const result = this.applyUpdates(updatedData, args.updates || []);
+          updatedData = result.resumeData;
+          extractedFields = [...extractedFields, ...result.extractedFields];
+          wasUpdate = true;
+
+          toolResults.push({
+            tool_call_id: toolCall.id,
+            role: "tool",
+            content: JSON.stringify({
+              success: true,
+              updatedFields: result.extractedFields.map(f => `${f.section}.${f.field}`),
+              message: `Successfully updated ${result.extractedFields.length} field(s).`
+            })
+          });
+
+        } else if (fnName === "generate_response") {
+          nextQuestion = args.message || "";
+          nextSection = args.nextSection || "personal";
+          nextField = args.nextField || "name";
+          isComplete = args.isComplete || false;
+
+          toolResults.push({
+            tool_call_id: toolCall.id,
+            role: "tool",
+            content: JSON.stringify({ success: true })
+          });
+        }
+      }
+
+      // If we got updates but no generate_response, do a follow-up call
+      if (wasUpdate && !nextQuestion) {
+        try {
+          const followUpMessages = [
+            ...messages,
+            response, // assistant message with tool_calls
+            ...toolResults,
+          ];
+
+          const followUp = await this.callGroq(followUpMessages, AGENT_TOOLS, "required");
+
+          if (followUp.tool_calls) {
+            for (const tc of followUp.tool_calls) {
+              if (tc.function.name === "generate_response") {
+                const fArgs = JSON.parse(tc.function.arguments);
+                nextQuestion = fArgs.message || "";
+                nextSection = fArgs.nextSection || "personal";
+                nextField = fArgs.nextField || "name";
+                isComplete = fArgs.isComplete || false;
+              }
+            }
+          }
+
+          // If still no question, use content
+          if (!nextQuestion && followUp.content) {
+            nextQuestion = followUp.content;
+          }
+        } catch (err) {
+          console.error("Follow-up call failed:", err.message);
+          // Generate a basic question from missing fields
+          nextQuestion = this._generateBasicQuestion(this.analyzeMissingFields(updatedData));
+        }
+      }
+    }
+
+    // If we still don't have a response, use the content directly
+    if (!nextQuestion && response.content) {
+      nextQuestion = response.content;
+    }
+
+    // Final fallback
+    if (!nextQuestion) {
+      nextQuestion = this._generateBasicQuestion(this.analyzeMissingFields(updatedData));
+    }
 
     return {
-      resumeData,
-      nextQuestion: next.question,
-      nextSection: next.section,
-      nextField: next.field,
-      nextArrayIndex: next.arrayIndex || 0,
-      extracted: extraction.skip ? null : extraction.value
+      updatedData,
+      extractedFields,
+      nextQuestion,
+      nextSection,
+      nextField,
+      isComplete,
+      wasUpdate
     };
   }
 
@@ -490,17 +594,61 @@ Extract now (return JSON):`;
   // ─────────────────────────────────────────────────────────────────
   startConversation() {
     return {
-      question: QUESTION_TEMPLATES.personal.name,
-      section: "personal",
-      field: "name",
-      arrayIndex: 0
+      message: "👋 Hi! I'm your AI Resume Assistant. I'll help you build a professional, ATS-optimized resume through our conversation.\n\nYou can share your information naturally — for example, tell me your name, email, and location all at once, or one at a time. I'll capture everything!\n\nLet's start — what's your full name?",
+      nextSection: "personal",
+      nextField: "name",
+      isComplete: false
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // FALLBACK RESPONSES
+  // ─────────────────────────────────────────────────────────────────
+  _fallbackResponse(userMessage, resumeData, missingFields) {
+    const question = this._generateBasicQuestion(missingFields);
+    return {
+      updatedData: resumeData,
+      extractedFields: [],
+      nextQuestion: `I had a brief hiccup processing that. ${question}`,
+      nextSection: missingFields[0]?.section || "personal",
+      nextField: missingFields[0]?.field || "name",
+      isComplete: false,
+      wasUpdate: false
+    };
+  }
+
+  _generateBasicQuestion(missingFields) {
+    if (missingFields.length === 0) {
+      return "🎉 Your resume looks complete! Would you like to make any edits or add more details?";
+    }
+
+    const requiredMissing = missingFields.filter(f => f.required);
+    const target = requiredMissing.length > 0 ? requiredMissing[0] : missingFields[0];
+
+    const questionMap = {
+      "personal.name": "What's your full name?",
+      "personal.email": "What's your email address?",
+      "personal.phone": "What's your phone number?",
+      "personal.location": "Where are you located?",
+      "personal.linkedin": "Do you have a LinkedIn profile? (or type 'skip')",
+      "personal.github": "Do you have a GitHub profile? (or type 'skip')",
+      "personal.website": "Do you have a personal website? (or type 'skip')",
+      "education.first_entry": "🎓 Let's add your education! What university did you attend?",
+      "experience.first_entry": "💼 Now let's add work experience! What company did you work for?",
+      "projects.first_entry": "🚀 Want to showcase any projects?",
+      "skills.languages": "💻 What programming languages do you know?",
+      "skills.technologies": "What frameworks and technologies do you use?",
+      "achievements.list": "🏆 Any achievements, awards, or certifications? (or type 'skip')",
+    };
+
+    const key = `${target.section}.${target.field}`;
+    return questionMap[key] || `Could you tell me about your ${target.field} (${target.section} section)?`;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════════
-export const createAgent = (apiKey) => new IntelligentResumeAgent(apiKey);
+export const createAgent = (apiKey) => new AgenticResumeAgent(apiKey);
 export const getMockPreviewData = () => JSON.parse(JSON.stringify(MOCK_PREVIEW_DATA));
 export { RESUME_SCHEMA };
