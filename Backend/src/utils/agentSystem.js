@@ -648,7 +648,7 @@ class AgenticResumeAgent {
     } catch (error) {
       console.error("LLM call failed:", error.message);
       // Fallback: return a safe response
-      return this._fallbackResponse(userMessage, resumeData, missingFields);
+      return this._fallbackResponse(userMessage, resumeData, missingFields, currentSection);
     }
 
     // Process tool calls
