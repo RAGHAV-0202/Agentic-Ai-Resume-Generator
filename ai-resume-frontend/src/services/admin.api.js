@@ -43,3 +43,7 @@ export const updateTemplateAPI = (id, formData) => {
 export const deleteTemplateAPI = (id) => {
     return api.delete(`/api/template/${id}`);
 };
+
+export const getAdminAnalyticsAPI = () => {
+    return api.get("/api/admin/analytics");
+};

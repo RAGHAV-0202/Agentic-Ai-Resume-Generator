@@ -10,6 +10,8 @@ import {
   skipCurrentField,
 } from "../controllers/agent.controllers.js";
 import { atsAnalyze, grammarCheck } from "../controllers/analysis.controllers.js";
+import { textToSpeech } from "../controllers/tts.controllers.js";
+import { getUserAnalytics } from "../controllers/analytics.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
@@ -38,5 +40,11 @@ router.post("/skip", skipCurrentField);
 // AI Analysis endpoints
 router.post("/ats-analyze", atsAnalyze);
 router.post("/grammar-check", grammarCheck);
+
+// Text-to-Speech
+router.post("/tts", textToSpeech);
+
+// User Analytics
+router.get("/analytics/me", getUserAnalytics);
 
 export default router;

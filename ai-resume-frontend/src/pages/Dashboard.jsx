@@ -5,8 +5,55 @@ import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import ResumeCard from '../components/ResumeCard';
 import { GetUserResume } from '../services/resume.api';
-import { Plus, FileText, Menu, Loader2, AlertCircle } from 'lucide-react';
+import { GetUserAnalytics } from '../services/agent.api';
+import { Plus, FileText, Menu, Loader2, AlertCircle, MessageSquare, Zap, Target, Cpu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+// Mini SVG sparkline component
+const Sparkline = ({ data, width = 200, height = 40 }) => {
+    if (!data || data.length === 0) return null;
+    const max = Math.max(...data, 1);
+    const points = data.map((v, i) => {
+        const x = (i / Math.max(data.length - 1, 1)) * width;
+        const y = height - (v / max) * (height - 4);
+        return `${x},${y}`;
+    }).join(' ');
+
+    return (
+        <svg width={width} height={height} className="overflow-visible">
+            <defs>
+                <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgb(59,130,246)" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="rgb(59,130,246)" stopOpacity="0.02" />
+                </linearGradient>
+            </defs>
+            <polygon
+                points={`0,${height} ${points} ${width},${height}`}
+                fill="url(#sparkGrad)"
+            />
+            <polyline
+                points={points}
+                fill="none"
+                stroke="rgb(59,130,246)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+};
+
+const StatCard = ({ icon: Icon, label, value, color }) => (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-start gap-3 shadow-sm hover:shadow-md transition-shadow">
+        <div className={`p-2.5 rounded-lg ${color}`}>
+            <Icon size={18} className="text-white" />
+        </div>
+        <div>
+            <p className="text-2xl font-bold text-slate-900">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">{label}</p>
+        </div>
+    </div>
+);
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -14,17 +61,18 @@ function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [analytics, setAnalytics] = useState(null);
 
     useEffect(() => {
         fetchResumes();
+        fetchAnalytics();
     }, []);
 
     const fetchResumes = async () => {
         try {
             setLoading(true);
             const response = await GetUserResume();
-            
-            // Handle various response structures
+
             let resumesData = [];
             if (response.data?.data?.resumes && Array.isArray(response.data.data.resumes)) {
                 resumesData = response.data.data.resumes;
@@ -46,9 +94,35 @@ function Dashboard() {
         }
     };
 
+    const fetchAnalytics = async () => {
+        try {
+            const res = await GetUserAnalytics();
+            setAnalytics(res.data?.data || null);
+        } catch (err) {
+            console.warn("Analytics fetch failed", err);
+        }
+    };
+
     const handleDeleteResume = (deletedId) => {
         setResumes(prev => prev.filter(r => r._id !== deletedId));
     };
+
+    // Build sparkline data from daily activity (last 30 days)
+    const sparklineData = (() => {
+        if (!analytics?.dailyActivity) return [];
+        const map = {};
+        analytics.dailyActivity.forEach(d => { map[d._id] = d.count; });
+        const days = [];
+        for (let i = 29; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const key = date.toISOString().split('T')[0];
+            days.push(map[key] || 0);
+        }
+        return days;
+    })();
+
+    const totals = analytics?.totals || {};
 
     return (
         <div className='min-h-screen bg-slate-50 flex flex-col font-sans'>
@@ -86,6 +160,30 @@ function Dashboard() {
                             </button>
                         </div>
 
+                        {/* Analytics Stat Cards */}
+                        {analytics && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <StatCard icon={FileText} label="Resumes Created" value={analytics.resumeCount || 0} color="bg-blue-500" />
+                                    <StatCard icon={MessageSquare} label="AI Messages" value={totals.aiChats || 0} color="bg-violet-500" />
+                                    <StatCard icon={Zap} label="Tokens Used" value={totals.totalTokens || 0} color="bg-amber-500" />
+                                    <StatCard icon={Target} label="ATS Analyses" value={totals.atsAnalyses || 0} color="bg-emerald-500" />
+                                </div>
+                                {sparklineData.length > 0 && (
+                                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Activity (Last 30 Days)</p>
+                                            <div className="flex items-center gap-1">
+                                                <Cpu size={12} className="text-slate-400" />
+                                                <span className="text-xs text-slate-400">{totals.totalEvents || 0} total events</span>
+                                            </div>
+                                        </div>
+                                        <Sparkline data={sparklineData} width={700} height={50} />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Content */}
                         {loading ? (
                             <div className="flex flex-col items-center justify-center h-64 space-y-4">
@@ -100,7 +198,7 @@ function Dashboard() {
                                 <div className="flex-1">
                                     <h3 className="font-semibold mb-1">Error Loading Resumes</h3>
                                     <p className="text-sm">{error}</p>
-                                    <button 
+                                    <button
                                         onClick={fetchResumes}
                                         className="mt-3 text-sm font-medium hover:underline"
                                     >
@@ -136,8 +234,8 @@ function Dashboard() {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {resumes.map((resume) => (
-                                        <ResumeCard 
-                                            key={resume._id} 
+                                        <ResumeCard
+                                            key={resume._id}
                                             resume={resume}
                                             onDelete={handleDeleteResume}
                                         />

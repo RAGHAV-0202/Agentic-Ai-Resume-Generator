@@ -10,6 +10,7 @@ import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { analyzeATSMatch } from "../utils/atsAnalyzer.js";
 import { checkGrammarAndTone } from "../utils/grammarChecker.js";
+import { trackEvent } from "../middlewares/analytics.middleware.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -38,6 +39,8 @@ export const atsAnalyze = asyncHandler(async (req, res) => {
         process.env.GROQ_API_KEY
     );
 
+    trackEvent(userId, "ats_analyze", { metadata: { matchScore: analysis.matchScore } });
+
     res.status(200).json(
         new ApiResponse(200, { analysis }, "ATS analysis completed successfully")
     );
@@ -65,6 +68,8 @@ export const grammarCheck = asyncHandler(async (req, res) => {
         resumeData,
         process.env.GROQ_API_KEY
     );
+
+    trackEvent(userId, "grammar_check", { metadata: { overallScore: analysis.overallScore } });
 
     res.status(200).json(
         new ApiResponse(200, { analysis }, "Grammar check completed successfully")

@@ -1,9 +1,11 @@
 /**
  * useVoice — Custom React hook for Speech-to-Text & Text-to-Speech
- * Uses the Web Speech API (SpeechRecognition + SpeechSynthesis)
- * Works best in Chrome/Edge.
+ * 
+ * STT: Uses Web Speech API (SpeechRecognition) — best in Chrome/Edge
+ * TTS: Uses Groq Orpheus AI voice via backend endpoint, with browser TTS fallback
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
+import api from '../services/http';
 
 export const useVoice = () => {
     const [isRecording, setIsRecording] = useState(false);
@@ -12,31 +14,31 @@ export const useVoice = () => {
     const [speechSupported, setSpeechSupported] = useState(false);
 
     const recognitionRef = useRef(null);
-    const synthRef = useRef(null);
+    const audioRef = useRef(null);
     const onResultRef = useRef(null);
 
     // Check browser support on mount
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const hasSynth = 'speechSynthesis' in window;
-        setSpeechSupported(!!(SpeechRecognition && hasSynth));
-        if (hasSynth) {
-            synthRef.current = window.speechSynthesis;
-        }
+        setSpeechSupported(!!SpeechRecognition);
 
         return () => {
             // Cleanup on unmount
             if (recognitionRef.current) {
                 try { recognitionRef.current.abort(); } catch (e) { /* ignore */ }
             }
-            if (synthRef.current) {
-                synthRef.current.cancel();
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+            }
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
             }
         };
     }, []);
 
     // ══════════════════════════════════════════════════════════
-    // SPEECH-TO-TEXT (STT)
+    // SPEECH-TO-TEXT (STT) — Web Speech API
     // ══════════════════════════════════════════════════════════
     const startRecording = useCallback((onTranscript) => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -80,15 +82,13 @@ export const useVoice = () => {
     }, []);
 
     // ══════════════════════════════════════════════════════════
-    // TEXT-TO-SPEECH (TTS)
+    // TEXT-TO-SPEECH (TTS) — Groq Orpheus AI Voice
+    // Falls back to browser speechSynthesis on error
     // ══════════════════════════════════════════════════════════
-    const speak = useCallback((text) => {
-        if (!synthRef.current || !text) return;
+    const speak = useCallback(async (text) => {
+        if (!text?.trim()) return;
 
-        // Cancel any ongoing speech
-        synthRef.current.cancel();
-
-        // Clean the text — remove markdown, excessive whitespace
+        // Clean text — remove markdown
         const cleanText = text
             .replace(/[*_#`~]/g, '')
             .replace(/\n{2,}/g, '. ')
@@ -98,40 +98,91 @@ export const useVoice = () => {
 
         if (!cleanText) return;
 
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.rate = 1.05;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
+        // Stop any ongoing speech
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
 
-        // Try to pick a good English voice
-        const voices = synthRef.current.getVoices();
-        const preferred = voices.find(v =>
-            v.name.includes('Google') && v.lang.startsWith('en')
-        ) || voices.find(v =>
-            v.lang.startsWith('en') && v.localService
-        ) || voices.find(v =>
-            v.lang.startsWith('en')
-        );
-        if (preferred) utterance.voice = preferred;
+        setIsSpeaking(true);
 
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
+        try {
+            // Try Groq Orpheus TTS first
+            const response = await api.post('/api/agent/tts', { text: cleanText }, {
+                responseType: 'blob',
+                timeout: 15000,
+            });
 
-        synthRef.current.speak(utterance);
+            const audioBlob = new Blob([response.data], { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+
+            audio.onended = () => {
+                setIsSpeaking(false);
+                URL.revokeObjectURL(audioUrl);
+                audioRef.current = null;
+            };
+            audio.onerror = () => {
+                setIsSpeaking(false);
+                URL.revokeObjectURL(audioUrl);
+                audioRef.current = null;
+            };
+
+            audioRef.current = audio;
+            await audio.play();
+        } catch (err) {
+            console.warn('Groq TTS failed, falling back to browser:', err.message);
+            // Fallback to browser speechSynthesis
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.rate = 1.05;
+                utterance.pitch = 1.0;
+
+                const voices = window.speechSynthesis.getVoices();
+                const preferred = voices.find(v =>
+                    v.name.includes('Google') && v.lang.startsWith('en')
+                ) || voices.find(v =>
+                    v.lang.startsWith('en') && v.localService
+                ) || voices.find(v =>
+                    v.lang.startsWith('en')
+                );
+                if (preferred) utterance.voice = preferred;
+
+                utterance.onend = () => setIsSpeaking(false);
+                utterance.onerror = () => setIsSpeaking(false);
+
+                window.speechSynthesis.speak(utterance);
+            } else {
+                setIsSpeaking(false);
+            }
+        }
     }, []);
 
     const stopSpeaking = useCallback(() => {
-        if (synthRef.current) {
-            synthRef.current.cancel();
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
         }
         setIsSpeaking(false);
     }, []);
 
     const toggleVoiceOutput = useCallback(() => {
         setVoiceOutputEnabled(prev => {
-            if (prev && synthRef.current) {
-                synthRef.current.cancel();
+            if (prev) {
+                // Turning off — stop any playing audio
+                if (audioRef.current) {
+                    audioRef.current.pause();
+                    audioRef.current = null;
+                }
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
                 setIsSpeaking(false);
             }
             return !prev;

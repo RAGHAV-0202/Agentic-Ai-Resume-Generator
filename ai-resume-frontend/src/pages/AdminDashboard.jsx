@@ -4,18 +4,20 @@ import {
     getAllUsersAPI,
     uploadTemplateAPI,
     adminLogoutAPI,
-    deleteTemplateAPI
+    deleteTemplateAPI,
+    getAdminAnalyticsAPI
 } from "../services/admin.api";
-import { getAllTemplates } from "../services/template.api"; // Use public API for fetching templates
+import { getAllTemplates } from "../services/template.api";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Users, FileText, Upload, Trash2, LogOut, Shield, Search, Plus, X, Laptop } from "lucide-react";
+import { Loader2, Users, FileText, Upload, Trash2, LogOut, Shield, Search, Plus, X, Laptop, BarChart3, Zap, Target, MessageSquare, Activity } from "lucide-react";
 
 const AdminDashboard = () => {
-    const [activeTab, setActiveTab] = useState("templates"); // 'users' | 'templates'
+    const [activeTab, setActiveTab] = useState("analytics"); // 'users' | 'templates' | 'analytics'
     const [users, setUsers] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [adminAnalytics, setAdminAnalytics] = useState(null);
     const navigate = useNavigate();
 
     // Template Form State
@@ -40,13 +42,15 @@ const AdminDashboard = () => {
             if (activeTab === "users") {
                 const res = await getAllUsersAPI();
                 if (res.data?.data) setUsers(res.data.data);
+            } else if (activeTab === "analytics") {
+                const res = await getAdminAnalyticsAPI();
+                if (res.data?.data) setAdminAnalytics(res.data.data);
             } else {
                 const res = await getAllTemplates();
                 if (res.data?.data?.templates) setTemplates(res.data.data.templates);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
-            // If 401, redirect to login
             if (error.message?.includes("401") || error.response?.status === 401) {
                 navigate("/admin/login");
             }
@@ -134,6 +138,14 @@ const AdminDashboard = () => {
 
                 <nav className="flex-1 p-4 space-y-2">
                     <button
+                        onClick={() => setActiveTab("analytics")}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === "analytics" ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                            }`}
+                    >
+                        <BarChart3 size={20} />
+                        <span className="font-medium">Analytics</span>
+                    </button>
+                    <button
                         onClick={() => setActiveTab("templates")}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === "templates" ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                             }`}
@@ -167,9 +179,11 @@ const AdminDashboard = () => {
                 <header className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">
-                            {activeTab === "users" ? "User Management" : "Template Library"}
+                            {activeTab === "users" ? "User Management" : activeTab === "analytics" ? "Platform Analytics" : "Template Library"}
                         </h1>
-                        <p className="text-slate-500 text-sm mt-1">Manage your application's {activeTab}</p>
+                        <p className="text-slate-500 text-sm mt-1">
+                            {activeTab === "analytics" ? "Real-time platform usage metrics" : `Manage your application's ${activeTab}`}
+                        </p>
                     </div>
 
                     {activeTab === "templates" && (
@@ -189,6 +203,126 @@ const AdminDashboard = () => {
                     </div>
                 ) : (
                     <>
+                        {activeTab === "analytics" && adminAnalytics && (() => {
+                            const t = adminAnalytics.totals || {};
+                            const dailyData = adminAnalytics.dailyActivity || [];
+                            const maxCount = Math.max(...dailyData.map(d => d.count), 1);
+                            const eventBreak = adminAnalytics.eventBreakdown || [];
+                            const maxEvent = Math.max(...eventBreak.map(e => e.count), 1);
+                            const EVENT_COLORS = { ai_chat: '#8b5cf6', ats_analyze: '#10b981', grammar_check: '#f59e0b', tts: '#ec4899', pdf_compile: '#3b82f6', resume_create: '#06b6d4' };
+                            const EVENT_LABELS = { ai_chat: 'AI Chats', ats_analyze: 'ATS Analyses', grammar_check: 'Grammar Checks', tts: 'TTS Requests', pdf_compile: 'PDF Compiles', resume_create: 'Resumes Created' };
+
+                            return (
+                                <div className="space-y-6">
+                                    {/* Stat Cards */}
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                        {[
+                                            { label: 'Total Users', value: adminAnalytics.totalUsers, icon: Users, color: 'bg-blue-500' },
+                                            { label: 'Total Resumes', value: adminAnalytics.totalResumes, icon: FileText, color: 'bg-violet-500' },
+                                            { label: 'Tokens Used', value: t.totalTokens || 0, icon: Zap, color: 'bg-amber-500' },
+                                            { label: 'Active (7d)', value: adminAnalytics.activeUsers7d, icon: Activity, color: 'bg-emerald-500' },
+                                        ].map((stat, i) => (
+                                            <div key={i} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className={`p-2 rounded-lg ${stat.color}`}>
+                                                        <stat.icon size={16} className="text-white" />
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{stat.label}</span>
+                                                </div>
+                                                <p className="text-3xl font-bold text-slate-900">{(stat.value || 0).toLocaleString()}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Usage Chart */}
+                                    {dailyData.length > 0 && (
+                                        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                                            <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">Usage — Last 30 Days</h3>
+                                            <div className="flex items-end gap-[3px] h-32">
+                                                {dailyData.map((d, i) => (
+                                                    <div key={i} className="flex-1 group relative">
+                                                        <div
+                                                            className="bg-blue-500 rounded-t hover:bg-blue-600 transition-colors w-full"
+                                                            style={{ height: `${Math.max((d.count / maxCount) * 100, 3)}%` }}
+                                                            title={`${d._id}: ${d.count} events`}
+                                                        />
+                                                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
+                                                            {d._id}: {d.count}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-between mt-2">
+                                                <span className="text-[10px] text-slate-400">{dailyData[0]?._id}</span>
+                                                <span className="text-[10px] text-slate-400">{dailyData[dailyData.length - 1]?._id}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        {/* Event Breakdown */}
+                                        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                                            <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">Event Breakdown</h3>
+                                            <div className="space-y-3">
+                                                {eventBreak.map((e, i) => (
+                                                    <div key={i}>
+                                                        <div className="flex justify-between text-xs mb-1">
+                                                            <span className="font-medium text-slate-600">{EVENT_LABELS[e._id] || e._id}</span>
+                                                            <span className="font-bold text-slate-800">{e.count.toLocaleString()}</span>
+                                                        </div>
+                                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full rounded-full transition-all"
+                                                                style={{ width: `${(e.count / maxEvent) * 100}%`, backgroundColor: EVENT_COLORS[e._id] || '#94a3b8' }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Top Users */}
+                                        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                                            <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wide">Top Users by Activity</h3>
+                                            <div className="space-y-2">
+                                                {(adminAnalytics.topUsers || []).map((u, i) => (
+                                                    <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                                                            {i + 1}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-slate-800 truncate">{u.name || 'Unknown'}</p>
+                                                            <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-sm font-bold text-slate-800">{u.events}</p>
+                                                            <p className="text-[10px] text-slate-400">{(u.tokens || 0).toLocaleString()} tokens</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Extra stats row */}
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
+                                            <p className="text-2xl font-bold text-slate-900">{t.aiChats || 0}</p>
+                                            <p className="text-xs text-slate-500 mt-1">AI Messages</p>
+                                        </div>
+                                        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
+                                            <p className="text-2xl font-bold text-slate-900">{t.ttsRequests || 0}</p>
+                                            <p className="text-xs text-slate-500 mt-1">TTS Requests</p>
+                                        </div>
+                                        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
+                                            <p className="text-2xl font-bold text-slate-900">{(t.totalCharacters || 0).toLocaleString()}</p>
+                                            <p className="text-xs text-slate-500 mt-1">TTS Characters</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {activeTab === "users" && (
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                                 <table className="w-full text-left text-sm text-slate-600">
