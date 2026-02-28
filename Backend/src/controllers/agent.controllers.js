@@ -284,6 +284,9 @@ export const updateResumeData = asyncHandler(async (req, res) => {
   const agent = createAgent(process.env.GROQ_API_KEY);
   const currentData = toPlainObject(resume.data);
 
+  // Save user message BEFORE processing so it is included in the conversation history
+  await resume.addMessage("user", updateRequest);
+
   const result = await agent.processMessage(
     updateRequest,
     currentData,
@@ -305,7 +308,6 @@ export const updateResumeData = asyncHandler(async (req, res) => {
     resume.markModified("data");
   }
 
-  await resume.addMessage("user", updateRequest);
   await resume.addMessage("assistant", `✅ ${result.nextQuestion}`);
   await resume.save();
 

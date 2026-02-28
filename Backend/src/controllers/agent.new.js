@@ -48,11 +48,9 @@ export const startAgenticConversation = asyncHandler(async (req, res) => {
   // Initialize agent
   const agent = createAgent(process.env.GROQ_API_KEY);
 
-  // Clean mock data before passing to agent
+  // Generate first question using the synchronous startConversation method
+  const result = agent.startConversation();
   const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
-
-  // Generate first question
-  const result = await agent.generateNextQuestion(cleanedData, []);
 
   // Save AI message
   await resume.addMessage("assistant", result.message);
@@ -98,9 +96,15 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     // Initialize agent
     const agent = createAgent(process.env.GROQ_API_KEY);
     const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
+    const currentSection = resume.conversationState?.currentSection || "personal";
     
-    // Force move to next field/section
-    const result = await agent.generateNextQuestion(cleanedData, resume.chatHistory, true); // true = skip current
+    // Process skip via processMessage so the agent handles section advancement correctly
+    const result = await agent.processMessage(
+      "skip",
+      cleanedData,
+      resume.chatHistory.map((msg) => ({ role: msg.role, content: msg.content })),
+      currentSection
+    );
     
     // Update conversation state
     resume.conversationState.currentSection = result.nextSection;
@@ -108,12 +112,12 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     resume.conversationState.isComplete = result.isComplete;
     
     // Save AI response
-    await resume.addMessage("assistant", `No problem! Let's move on. ${result.message}`);
+    await resume.addMessage("assistant", `No problem! Let's move on. ${result.nextQuestion}`);
     await resume.save();
     
     return res.status(200).json(
       new ApiResponse(200, {
-        aiMessage: `No problem! Let's move on. ${result.message}`,
+        aiMessage: `No problem! Let's move on. ${result.nextQuestion}`,
         conversationState: resume.conversationState,
         resumeData: cleanedData,
         wasSkipped: true,
@@ -133,15 +137,14 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   const conversationHistory = resume.chatHistory.map((msg) => ({
     role: msg.role,
     content: msg.content,
-    nextSection: resume.conversationState.currentSection,
-    nextField: resume.conversationState.currentField,
   }));
 
   // Process message with agent (extracts data, updates, generates next question)
   const result = await agent.processMessage(
     message,
     cleanedData,
-    conversationHistory
+    conversationHistory,
+    resume.conversationState?.currentSection || "personal"
   );
 
   // Merge the updated data back (preserving structure)
@@ -149,13 +152,12 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
     if (key === 'personal' || key === 'skills') {
       resume.data[key] = { ...resume.data[key], ...result.updatedData[key] };
     } else if (Array.isArray(result.updatedData[key])) {
-      if (result.updatedData[key].length > resume.data[key].length) {
-        resume.data[key] = result.updatedData[key];
-      }
+      resume.data[key] = result.updatedData[key];
     } else {
       resume.data[key] = result.updatedData[key];
     }
   });
+  resume.markModified("data");
 
   // Save AI response
   await resume.addMessage("assistant", result.nextQuestion);
@@ -224,13 +226,17 @@ export const updateResumeData = asyncHandler(async (req, res) => {
   const agent = createAgent(process.env.GROQ_API_KEY);
   const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
+  // Save user message BEFORE processing so it is included in the conversation history
+  await resume.addMessage("user", updateRequest);
+
   const result = await agent.processMessage(
     updateRequest,
     cleanedData,
     resume.chatHistory.map((msg) => ({
       role: msg.role,
       content: msg.content,
-    }))
+    })),
+    resume.conversationState?.currentSection || "personal"
   );
 
   Object.keys(result.updatedData).forEach(key => {
@@ -242,8 +248,8 @@ export const updateResumeData = asyncHandler(async (req, res) => {
       resume.data[key] = result.updatedData[key];
     }
   });
+  resume.markModified("data");
 
-  await resume.addMessage("user", updateRequest);
   await resume.addMessage("assistant", `✅ Updated successfully! ${result.nextQuestion}`);
   await resume.save();
 
@@ -373,19 +379,24 @@ export const skipCurrentField = asyncHandler(async (req, res) => {
   const agent = createAgent(process.env.GROQ_API_KEY);
   const cleanedData = cleanMockData(resume.data?.toObject ? resume.data.toObject() : resume.data);
 
-  // Force skip to next field
-  const result = await agent.generateNextQuestion(cleanedData, resume.chatHistory, true);
+  // Process skip via processMessage so the agent handles section advancement correctly
+  const result = await agent.processMessage(
+    "skip",
+    cleanedData,
+    resume.chatHistory.map((msg) => ({ role: msg.role, content: msg.content })),
+    resume.conversationState?.currentSection || "personal"
+  );
 
   resume.conversationState.currentSection = result.nextSection;
   resume.conversationState.currentField = result.nextField;
   resume.conversationState.isComplete = result.isComplete;
 
-  await resume.addMessage("assistant", `No problem! ${result.message}`);
+  await resume.addMessage("assistant", `No problem! ${result.nextQuestion}`);
   await resume.save();
 
   res.status(200).json(
     new ApiResponse(200, {
-      aiMessage: `No problem! ${result.message}`,
+      aiMessage: `No problem! ${result.nextQuestion}`,
       conversationState: resume.conversationState,
       resumeData: cleanedData,
     })

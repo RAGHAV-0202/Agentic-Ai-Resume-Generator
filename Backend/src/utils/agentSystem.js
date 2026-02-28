@@ -22,9 +22,9 @@ import fetch from "node-fetch";
 // GROQ CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
 const GROQ_MODELS = [
-  "openai/gpt-oss-120b",                          // Primary — 30 req/min, 8K tok/min
-  "llama-3.3-70b-versatile",                       // Fallback 1 — 30 req/min, 12K tok/min
-  "qwen/qwen3-32b",                                // Fallback 3 — 60 req/min, 6K tok/min
+  "llama-3.3-70b-versatile",                       // Primary — 30 req/min, 12K tok/min
+  "llama-3.1-8b-instant",                          // Fallback 1 — 30 req/min, 6K tok/min
+  "qwen/qwen3-32b",                                // Fallback 2 — 60 req/min, 6K tok/min
 ];
 
 // Dynamic model selection — remembers last working model
