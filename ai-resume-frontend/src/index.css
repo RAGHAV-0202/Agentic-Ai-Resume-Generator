@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 .container {
     max-width: 1280px;
     width: 100%;
@@ -7,7 +9,6 @@
     padding: 0 24px;
 }
 
-/* Custom Scrollbar for Dark Theme */
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
     width: 6px;
@@ -20,11 +21,18 @@
 
 ::-webkit-scrollbar-thumb {
     background: #cbd5e1;
-    /* slate-300 */
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
-    /* slate-400 */
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
 }

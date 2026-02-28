@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, GraduationCap, Briefcase, FolderOpen, Code, Trophy, Layers, Plus, Trash2, Save, ChevronDown, ChevronRight } from 'lucide-react';
+import { User, GraduationCap, Briefcase, FolderOpen, Code, Trophy, Layers, Plus, Trash2, Save, ChevronDown, ChevronRight, Sparkles, Loader2, Undo2, GripVertical } from 'lucide-react';
 
 const TABS = [
     { key: 'personal', label: 'Personal', icon: User },
@@ -26,24 +26,63 @@ const Field = ({ label, value, onChange, placeholder, optional }) => (
     </div>
 );
 
-const ArrayField = ({ label, items = [], onChange, placeholder }) => {
+const ArrayField = ({ label, items = [], onChange, placeholder, context }) => {
+    const [enhancing, setEnhancing] = useState(null); // index being enhanced
+    const [original, setOriginal] = useState(null); // { index, text } for revert
     const addItem = () => onChange([...items, '']);
-    const removeItem = (i) => onChange(items.filter((_, idx) => idx !== i));
+    const removeItem = (i) => { onChange(items.filter((_, idx) => idx !== i)); if (original?.index === i) setOriginal(null); };
     const updateItem = (i, val) => onChange(items.map((item, idx) => idx === i ? val : item));
+
+    const handleEnhance = async (i) => {
+        if (!items[i]?.trim()) return;
+        setEnhancing(i);
+        setOriginal({ index: i, text: items[i] });
+        try {
+            const res = await import('../services/agent.api').then(m => m.EnhanceBullet({ text: items[i], context }));
+            const enhanced = res.data?.data?.enhanced;
+            if (enhanced) updateItem(i, enhanced);
+        } catch (err) {
+            console.error('Enhance failed:', err);
+        } finally {
+            setEnhancing(null);
+        }
+    };
+
+    const handleRevert = () => {
+        if (original) {
+            updateItem(original.index, original.text);
+            setOriginal(null);
+        }
+    };
 
     return (
         <div className="mb-3">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">{label}</label>
             {items.map((item, i) => (
-                <div key={i} className="flex gap-2 mb-1.5">
+                <div key={i} className="flex gap-1.5 mb-1.5 items-start">
                     <input
                         type="text"
                         value={item || ''}
                         onChange={(e) => updateItem(i, e.target.value)}
                         placeholder={placeholder}
-                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+                        className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-slate-700 transition-all"
                     />
-                    <button onClick={() => removeItem(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    {/* Enhance button */}
+                    <button
+                        onClick={() => handleEnhance(i)}
+                        disabled={enhancing !== null || !item?.trim()}
+                        title="AI Enhance"
+                        className="p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                        {enhancing === i ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    </button>
+                    {/* Revert button (shows after enhance) */}
+                    {original?.index === i && enhancing === null && (
+                        <button onClick={handleRevert} title="Revert to original" className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                            <Undo2 size={14} />
+                        </button>
+                    )}
+                    <button onClick={() => removeItem(i)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
                         <Trash2 size={14} />
                     </button>
                 </div>
@@ -127,7 +166,7 @@ const ExperienceSection = ({ data = [], onChange }) => {
                         <Field label="Start Date" value={exp.startDate} onChange={(v) => update(i, { ...exp, startDate: v })} />
                         <Field label="End Date" value={exp.endDate} onChange={(v) => update(i, { ...exp, endDate: v })} />
                     </div>
-                    <ArrayField label="Highlights" items={exp.highlights} onChange={(v) => update(i, { ...exp, highlights: v })} placeholder="e.g., Improved API latency by 40%" />
+                    <ArrayField label="Highlights" items={exp.highlights} onChange={(v) => update(i, { ...exp, highlights: v })} placeholder="e.g., Improved API latency by 40%" context={`${exp.position || ''} at ${exp.company || ''}`} />
                 </EntryCard>
             ))}
             <button onClick={add} className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors w-full justify-center font-medium">
@@ -149,7 +188,7 @@ const ProjectsSection = ({ data = [], onChange }) => {
                     <Field label="Name" value={proj.name} onChange={(v) => update(i, { ...proj, name: v })} />
                     <Field label="Link" value={proj.link} onChange={(v) => update(i, { ...proj, link: v })} optional />
                     <Field label="Date" value={proj.date} onChange={(v) => update(i, { ...proj, date: v })} placeholder="Jan 2024 – Jun 2024" />
-                    <ArrayField label="Highlights" items={proj.highlights} onChange={(v) => update(i, { ...proj, highlights: v })} placeholder="e.g., Built ML pipeline processing 10K+ records" />
+                    <ArrayField label="Highlights" items={proj.highlights} onChange={(v) => update(i, { ...proj, highlights: v })} placeholder="e.g., Built ML pipeline processing 10K+ records" context={`project: ${proj.name || ''}`} />
                     <ArrayField label="Technologies" items={proj.technologies} onChange={(v) => update(i, { ...proj, technologies: v })} placeholder="e.g., React" />
                 </EntryCard>
             ))}
@@ -273,14 +312,35 @@ const CustomSectionsSection = ({ data = [], onChange }) => {
 const EditForm = ({ resumeData, onSave, saving }) => {
     const [activeTab, setActiveTab] = useState('personal');
     const [localData, setLocalData] = useState(JSON.parse(JSON.stringify(resumeData || {})));
+    const [tabOrder, setTabOrder] = useState(() => {
+        const saved = resumeData?.sectionOrder;
+        return saved?.length ? saved : TABS.map(t => t.key);
+    });
+    const [dragIdx, setDragIdx] = useState(null);
 
     const updateSection = (section, value) => {
         setLocalData(prev => ({ ...prev, [section]: value }));
     };
 
     const handleSave = () => {
-        onSave(localData);
+        onSave({ ...localData, sectionOrder: tabOrder });
     };
+
+    // Drag handlers for tab reordering
+    const onDragStart = (e, idx) => {
+        setDragIdx(idx);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+    const onDragOver = (e, idx) => {
+        e.preventDefault();
+        if (dragIdx === null || dragIdx === idx) return;
+        const newOrder = [...tabOrder];
+        const [moved] = newOrder.splice(dragIdx, 1);
+        newOrder.splice(idx, 0, moved);
+        setTabOrder(newOrder);
+        setDragIdx(idx);
+    };
+    const onDragEnd = () => setDragIdx(null);
 
     const renderSection = () => {
         switch (activeTab) {
@@ -295,21 +355,29 @@ const EditForm = ({ resumeData, onSave, saving }) => {
         }
     };
 
+    // Ordered tabs for rendering
+    const orderedTabs = tabOrder.map(key => TABS.find(t => t.key === key)).filter(Boolean);
+
     return (
         <div className="flex flex-col h-full">
-            {/* Tabs */}
-            <div className="flex gap-1 p-3 bg-white border-b border-slate-200 overflow-x-auto">
-                {TABS.map(tab => {
+            {/* Draggable Tabs */}
+            <div className="flex gap-1 p-3 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+                {orderedTabs.map((tab, idx) => {
                     const Icon = tab.icon;
                     return (
                         <button
                             key={tab.key}
+                            draggable
+                            onDragStart={(e) => onDragStart(e, idx)}
+                            onDragOver={(e) => onDragOver(e, idx)}
+                            onDragEnd={onDragEnd}
                             onClick={() => setActiveTab(tab.key)}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${activeTab === tab.key
-                                ? 'bg-blue-100 text-blue-700 shadow-sm'
-                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                                }`}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-grab active:cursor-grabbing ${activeTab === tab.key
+                                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shadow-sm'
+                                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200'
+                                } ${dragIdx === idx ? 'opacity-50 scale-95' : ''}`}
                         >
+                            <GripVertical size={10} className="text-slate-300 dark:text-slate-600 -ml-1" />
                             <Icon size={14} />
                             {tab.label}
                         </button>
@@ -318,12 +386,12 @@ const EditForm = ({ resumeData, onSave, saving }) => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 dark:bg-slate-900">
                 {renderSection()}
             </div>
 
             {/* Save */}
-            <div className="p-4 bg-white border-t border-slate-200">
+            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
                 <button
                     onClick={handleSave}
                     disabled={saving}

@@ -17,3 +17,5 @@ export const AnalyzeATS = (data) => api.post('api/agent/ats-analyze', data);
 export const CheckGrammar = (data) => api.post('api/agent/grammar-check', data);
 
 export const GetUserAnalytics = () => api.get('api/agent/analytics/me');
+
+export const EnhanceBullet = (data) => api.post('api/agent/enhance-bullet', data);

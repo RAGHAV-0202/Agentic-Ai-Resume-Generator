@@ -125,7 +125,7 @@ function Dashboard() {
     const totals = analytics?.totals || {};
 
     return (
-        <div className='min-h-screen bg-slate-50 flex flex-col font-sans'>
+        <div className='min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans'>
             <Navbar />
 
             <div className='flex flex-1 pt-16 relative'>

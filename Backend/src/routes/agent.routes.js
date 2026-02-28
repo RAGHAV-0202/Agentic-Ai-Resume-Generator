@@ -12,6 +12,7 @@ import {
 import { atsAnalyze, grammarCheck } from "../controllers/analysis.controllers.js";
 import { textToSpeech } from "../controllers/tts.controllers.js";
 import { getUserAnalytics } from "../controllers/analytics.controllers.js";
+import { enhanceBullet } from "../controllers/enhance.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
@@ -46,5 +47,8 @@ router.post("/tts", textToSpeech);
 
 // User Analytics
 router.get("/analytics/me", getUserAnalytics);
+
+// AI Bullet Enhancer
+router.post("/enhance-bullet", enhanceBullet);
 
 export default router;

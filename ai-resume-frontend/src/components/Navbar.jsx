@@ -1,9 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { User, LogOut, LayoutDashboard } from 'lucide-react';
+import { User, LogOut, LayoutDashboard, Moon, Sun } from 'lucide-react';
 import Button from '../components/ui/Button';
+import { useTheme } from '../hooks/useTheme';
 
 function Navbar() {
+    const { isDark, toggleTheme } = useTheme();
 
     const currentUrl = window.location.pathname;
     const navigate = useNavigate();
@@ -55,6 +57,13 @@ function Navbar() {
                                 <LayoutDashboard className="w-4 h-4" />
                                 <span className="hidden sm:inline">Dashboard</span>
                             </Link>
+                            <button
+                                onClick={toggleTheme}
+                                className='p-2 text-slate-300 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg'
+                                title={isDark ? 'Light mode' : 'Dark mode'}
+                            >
+                                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                            </button>
                             <button
                                 onClick={handleLogout}
                                 className='flex items-center gap-2 text-sm font-medium text-red-400 hover:text-red-300 transition-colors bg-white/5 hover:bg-white/10 px-3 py-2 rounded-lg'
