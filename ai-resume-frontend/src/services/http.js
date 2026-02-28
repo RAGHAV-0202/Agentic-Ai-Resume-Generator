@@ -53,3 +53,15 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+export const toggleResumePublicStatus = async (id, isPublic) => {
+  const response = await api.patch(`/api/resume/${id}/data`, { isPublic });
+  return response.data;
+};
+
+export const getPublicResume = async (id) => {
+  // Use a fresh axios instance without the auth interceptors
+  const publicApi = axios.create({ baseURL });
+  const response = await publicApi.get(`/api/public/resumes/${id}`);
+  return response.data;
+};

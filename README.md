@@ -7,8 +7,11 @@ An advanced, AI-powered resume builder that treats your resume as a coding proje
 ## ✨ Key Features
 
 - **🤖 AI Copilot**: Intelligent chat agent (Groq) that helps you write content, optimize bullet points, and fix grammar in real-time.
+- **✨ AI Bullet Point Enhancer**: Automatically refine and strengthen your resume bullet points for maximum impact.
+- **↕️ Drag-and-Drop Reordering**: Easily rearrange resume sections and experiences with an intuitive drag-and-drop interface.
+- **🌙 Dark Mode**: Sleek dark mode for a comfortable editing experience.
 - **📄 Real-Time PDF Preview**: Instant feedback with live LaTeX compilation. See exactly how your resume looks as you edit.
-- **🛡️ Admin Dashboard**: comprehensive admin panel to manage users, track usage, and upload new LaTeX templates.
+- **🛡️ Admin Dashboard**: comprehensive Admin Analytics dashboard to manage users, track requests, monitor token usage, and upload new LaTeX templates.
 - **🎨 Template System**: Dynamic template gallery with thumbnail previews. Admins can upload new templates (LaTeX + Image) directly.
 - **🔐 Secure Auth**: Role-based authentication (User & Admin) using JWT and secure cookies.
 - **☁️ Cloud Storage**: Cloudinary integration for storing resume assets and template thumbnails.
@@ -19,11 +22,13 @@ An advanced, AI-powered resume builder that treats your resume as a coding proje
 - **Framework**: React 19 (Vite)
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
+- **Animations/3D**: GSAP, Framer Motion, Three.js
 - **State**: React Hooks (useState, useEffect)
 
 ### Backend
 - **Runtime**: Node.js & Express
 - **Database**: MongoDB (Mongoose)
+- **Caching**: Redis
 - **AI Engine**: Groq SDK
 - **File Uploads**: Multer & Cloudinary
 - **PDF Generation**: `pdflatex` (System Requirement)

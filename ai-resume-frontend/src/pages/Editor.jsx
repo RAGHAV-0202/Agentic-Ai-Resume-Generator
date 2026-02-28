@@ -6,6 +6,7 @@ import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Load
 import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate, UpdateResumeData } from '../services/resume.api';
 import { baseURL } from '../services/http';
 import { StartAgentChat, MsgAgent, SkipAgentQuestion } from '../services/agent.api';
+import { toggleResumePublicStatus } from '../services/http';
 import { getAllTemplates } from '../services/template.api';
 import { GridScan } from '../components/ui/gridScan';
 import DotGrid from '../components/ui/dotGrid';
@@ -34,6 +35,8 @@ const Editor = () => {
     const [editorMode, setEditorMode] = useState('chat'); // 'chat' or 'edit'
     const [showAtsPanel, setShowAtsPanel] = useState(false);
     const [editSaving, setEditSaving] = useState(false);
+    const [isPublic, setIsPublic] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
 
 
     // Fetch Resume & Templates on Mount
@@ -47,6 +50,7 @@ const Editor = () => {
                 if (resumeRes.data?.data?.resume) {
                     const resume = resumeRes.data.data.resume;
                     setResumeData(resume.data);
+                    setIsPublic(resume.isPublic || false);
                     handleRecompile()
 
                     // Restore chat history
@@ -245,6 +249,17 @@ const Editor = () => {
         }
     };
 
+    const handleTogglePublic = async () => {
+        try {
+            const newStatus = !isPublic;
+            await toggleResumePublicStatus(id, newStatus);
+            setIsPublic(newStatus);
+        } catch (error) {
+            console.error("Failed to toggle public status", error);
+            alert("Failed to update share settings");
+        }
+    };
+
     if (loading) {
         return (
             <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -289,11 +304,64 @@ const Editor = () => {
                     >
                         <Download size={18} /> Download PDF
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                    <button
+                        onClick={() => setShowShareModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                    >
                         <Share2 size={18} /> Share
                     </button>
                 </div>
             </header>
+
+            {/* Share Modal */}
+            {showShareModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="p-6">
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">Share Resume</h3>
+                            <p className="text-slate-500 text-sm mb-6">Allow anyone with the link to view a beautiful web version of your resume.</p>
+
+                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl mb-4 border border-slate-200">
+                                <div>
+                                    <p className="font-semibold text-slate-800">Public Link</p>
+                                    <p className="text-xs text-slate-500">{isPublic ? 'Anyone with link can view' : 'Currently private'}</p>
+                                </div>
+                                <button
+                                    onClick={handleTogglePublic}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPublic ? 'bg-blue-600' : 'bg-slate-300'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            {isPublic && (
+                                <div className="animate-in fade-in slide-in-from-top-2">
+                                    <div className="flex items-center gap-2 mb-2 p-3 bg-blue-50 border border-blue-100 text-blue-800 rounded-lg text-sm font-medium">
+                                        <div className="flex-1 truncate select-all">{window.location.origin}/resume/{id}</div>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(`${window.location.origin}/resume/${id}`);
+                                                alert("Link copied!");
+                                            }}
+                                            className="px-3 py-1.5 bg-white text-blue-600 rounded-md shadow-sm border border-blue-200 hover:bg-blue-50 transition-colors shrink-0"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                    <a href={`/resume/${id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                                        Open in new tab &rarr;
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                            <button onClick={() => setShowShareModal(false)} className="px-5 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-medium transition-colors">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="flex flex-1 overflow-hidden">
                 {/* LEFT PANEL: Templates */}

@@ -303,11 +303,11 @@ export const getResumeStatus = asyncHandler(async (req, res) => {
 // ====================================================================
 export const updateResumeData = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { data } = req.body;
+  const { data, isPublic } = req.body;
   const userId = req.user._id;
 
-  if (!data || typeof data !== "object") {
-    throw new ApiError(400, "data object is required");
+  if (data && typeof data !== "object") {
+    throw new ApiError(400, "data must be an object");
   }
 
   const resume = await Resume.findOne({ _id: id, userId }).populate("templateId");
@@ -316,23 +316,29 @@ export const updateResumeData = asyncHandler(async (req, res) => {
   }
 
   // Deep merge: overwrite only provided fields
-  const sections = ["personal", "education", "experience", "projects", "skills", "achievements", "publications"];
-  for (const section of sections) {
-    if (data[section] === undefined) continue;
+  if (data) {
+    const sections = ["personal", "education", "experience", "projects", "skills", "achievements", "publications"];
+    for (const section of sections) {
+      if (data[section] === undefined) continue;
 
-    if (section === "achievements") {
-      // Flat array of strings
-      resume.data.achievements = data.achievements;
-    } else if (Array.isArray(data[section])) {
-      // Array sections (education, experience, projects, publications)
-      resume.data[section] = data[section];
-    } else if (typeof data[section] === "object") {
-      // Object sections (personal, skills)
-      resume.data[section] = { ...resume.data[section]?.toObject?.() || resume.data[section], ...data[section] };
+      if (section === "achievements") {
+        // Flat array of strings
+        resume.data.achievements = data.achievements;
+      } else if (Array.isArray(data[section])) {
+        // Array sections (education, experience, projects, publications)
+        resume.data[section] = data[section];
+      } else if (typeof data[section] === "object") {
+        // Object sections (personal, skills)
+        resume.data[section] = { ...resume.data[section]?.toObject?.() || resume.data[section], ...data[section] };
+      }
     }
+    resume.markModified("data");
   }
 
-  resume.markModified("data");
+  // Handle isPublic toggle
+  if (isPublic !== undefined) {
+    resume.isPublic = Boolean(isPublic);
+  }
 
   // Auto-recompile PDF if template exists
   if (resume.templateId) {

@@ -19,6 +19,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { createAgent, scoreResume } from "../utils/agentSystem.js";
 import { generateLatex } from "../utils/LatexGenerator.js";
 import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
+import fetch from "node-fetch";
 import dotenv from "dotenv";
 
 dotenv.config();

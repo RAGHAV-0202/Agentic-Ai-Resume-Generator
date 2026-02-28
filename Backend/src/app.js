@@ -12,6 +12,7 @@ import pdfRoutes from "./routes/pdf.routes.js"
 import templateRoutes from "./routes/template.routes.js"
 import AdminRouter from "./routes/admin.routes.js"
 import agentRoutes from "./routes/agent.routes.js";
+import publicRoutes from "./routes/public.routes.js";
 
 const app = express()
 app.use(expressStatusMonitor({ path: '/dashboard' }))
@@ -61,5 +62,6 @@ app.use("/api/pdf", pdfRoutes);
 app.use("/api/template", templateRoutes)
 app.use("/api/admin", AdminRouter)
 app.use("/api/agent", agentRoutes);
+app.use("/api/public", publicRoutes);
 
 export default app
