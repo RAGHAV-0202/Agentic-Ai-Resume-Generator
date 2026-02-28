@@ -135,6 +135,24 @@ const resumeSchema = new mongoose.Schema(
           doi: { type: String, default: '' },
         },
       ],
+
+      customSections: [
+        {
+          title: { type: String, required: true },
+          type: { type: String, enum: ['list', 'entries'], default: 'list' },
+          items: [
+            { text: { type: String } }
+          ],
+          entries: [
+            {
+              title: { type: String, default: '' },
+              subtitle: { type: String, default: '' },
+              date: { type: String, default: '' },
+              highlights: [{ type: String }],
+            },
+          ],
+        },
+      ],
     },
 
     generatedLatex: {

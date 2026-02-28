@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, GraduationCap, Briefcase, FolderOpen, Code, Trophy, Plus, Trash2, Save, ChevronDown, ChevronRight } from 'lucide-react';
+import { User, GraduationCap, Briefcase, FolderOpen, Code, Trophy, Layers, Plus, Trash2, Save, ChevronDown, ChevronRight } from 'lucide-react';
 
 const TABS = [
     { key: 'personal', label: 'Personal', icon: User },
@@ -8,6 +8,7 @@ const TABS = [
     { key: 'projects', label: 'Projects', icon: FolderOpen },
     { key: 'skills', label: 'Skills', icon: Code },
     { key: 'achievements', label: 'Achievements', icon: Trophy },
+    { key: 'custom', label: 'Custom', icon: Layers },
 ];
 
 const Field = ({ label, value, onChange, placeholder, optional }) => (
@@ -173,6 +174,102 @@ const AchievementsSection = ({ data = [], onChange }) => (
     <ArrayField label="Achievements" items={data} onChange={onChange} placeholder="e.g., Winner of HackMIT 2023" />
 );
 
+const CustomSectionsSection = ({ data = [], onChange }) => {
+    const addSection = () => onChange([...data, { title: '', type: 'list', items: [{ text: '' }], entries: [] }]);
+    const removeSection = (i) => onChange(data.filter((_, idx) => idx !== i));
+    const updateSection = (i, updated) => onChange(data.map((s, idx) => idx === i ? updated : s));
+
+    return (
+        <div>
+            {data.length === 0 && (
+                <div className="text-center py-8 text-slate-400">
+                    <Layers size={32} className="mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">No custom sections yet</p>
+                    <p className="text-xs mt-1">Add sections like Certifications, Volunteering, Awards, etc.</p>
+                </div>
+            )}
+            {data.map((section, sIdx) => (
+                <EntryCard key={sIdx} title={section.title || 'Untitled Section'} onDelete={() => removeSection(sIdx)}>
+                    <Field label="Section Title" value={section.title} onChange={(v) => updateSection(sIdx, { ...section, title: v })} placeholder="e.g., Certifications" />
+                    <div className="mb-3">
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Type</label>
+                        <div className="flex gap-2">
+                            {['list', 'entries'].map(t => (
+                                <button key={t} onClick={() => updateSection(sIdx, { ...section, type: t })}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${section.type === t ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                                >{t === 'list' ? '• Bullet List' : '📋 Structured Entries'}</button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {section.type === 'list' ? (
+                        <div>
+                            {(section.items || []).map((item, iIdx) => (
+                                <div key={iIdx} className="flex gap-2 mb-1.5">
+                                    <input type="text" value={item.text || ''}
+                                        onChange={(e) => {
+                                            const newItems = [...(section.items || [])];
+                                            newItems[iIdx] = { text: e.target.value };
+                                            updateSection(sIdx, { ...section, items: newItems });
+                                        }}
+                                        placeholder="Item text"
+                                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+                                    />
+                                    <button onClick={() => updateSection(sIdx, { ...section, items: section.items.filter((_, idx) => idx !== iIdx) })}
+                                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    ><Trash2 size={14} /></button>
+                                </div>
+                            ))}
+                            <button onClick={() => updateSection(sIdx, { ...section, items: [...(section.items || []), { text: '' }] })}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium mt-1"
+                            ><Plus size={12} /> Add item</button>
+                        </div>
+                    ) : (
+                        <div>
+                            {(section.entries || []).map((entry, eIdx) => (
+                                <div key={eIdx} className="border border-slate-100 rounded-lg p-3 mb-2 bg-slate-50/50">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Entry {eIdx + 1}</span>
+                                        <button onClick={() => updateSection(sIdx, { ...section, entries: section.entries.filter((_, idx) => idx !== eIdx) })}
+                                            className="p-1 text-red-400 hover:text-red-600 rounded transition-colors"
+                                        ><Trash2 size={12} /></button>
+                                    </div>
+                                    <Field label="Title" value={entry.title} onChange={(v) => {
+                                        const newEntries = [...(section.entries || [])];
+                                        newEntries[eIdx] = { ...entry, title: v };
+                                        updateSection(sIdx, { ...section, entries: newEntries });
+                                    }} placeholder="e.g., AWS Solutions Architect" />
+                                    <Field label="Subtitle" value={entry.subtitle} onChange={(v) => {
+                                        const newEntries = [...(section.entries || [])];
+                                        newEntries[eIdx] = { ...entry, subtitle: v };
+                                        updateSection(sIdx, { ...section, entries: newEntries });
+                                    }} placeholder="e.g., Amazon Web Services" optional />
+                                    <Field label="Date" value={entry.date} onChange={(v) => {
+                                        const newEntries = [...(section.entries || [])];
+                                        newEntries[eIdx] = { ...entry, date: v };
+                                        updateSection(sIdx, { ...section, entries: newEntries });
+                                    }} placeholder="e.g., Dec 2023" optional />
+                                    <ArrayField label="Highlights" items={entry.highlights || []} onChange={(v) => {
+                                        const newEntries = [...(section.entries || [])];
+                                        newEntries[eIdx] = { ...entry, highlights: v };
+                                        updateSection(sIdx, { ...section, entries: newEntries });
+                                    }} placeholder="Details..." />
+                                </div>
+                            ))}
+                            <button onClick={() => updateSection(sIdx, { ...section, entries: [...(section.entries || []), { title: '', subtitle: '', date: '', highlights: [] }] })}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium mt-1"
+                            ><Plus size={12} /> Add entry</button>
+                        </div>
+                    )}
+                </EntryCard>
+            ))}
+            <button onClick={addSection} className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors w-full justify-center font-medium">
+                <Plus size={16} /> Add Custom Section
+            </button>
+        </div>
+    );
+};
+
 const EditForm = ({ resumeData, onSave, saving }) => {
     const [activeTab, setActiveTab] = useState('personal');
     const [localData, setLocalData] = useState(JSON.parse(JSON.stringify(resumeData || {})));
@@ -193,6 +290,7 @@ const EditForm = ({ resumeData, onSave, saving }) => {
             case 'projects': return <ProjectsSection data={localData.projects} onChange={(v) => updateSection('projects', v)} />;
             case 'skills': return <SkillsSection data={localData.skills} onChange={(v) => updateSection('skills', v)} />;
             case 'achievements': return <AchievementsSection data={localData.achievements} onChange={(v) => updateSection('achievements', v)} />;
+            case 'custom': return <CustomSectionsSection data={localData.customSections} onChange={(v) => updateSection('customSections', v)} />;
             default: return null;
         }
     };
@@ -208,8 +306,8 @@ const EditForm = ({ resumeData, onSave, saving }) => {
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${activeTab === tab.key
-                                    ? 'bg-blue-100 text-blue-700 shadow-sm'
-                                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                                ? 'bg-blue-100 text-blue-700 shadow-sm'
+                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                                 }`}
                         >
                             <Icon size={14} />

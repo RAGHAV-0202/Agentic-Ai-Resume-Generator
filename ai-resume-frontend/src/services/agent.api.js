@@ -11,3 +11,7 @@ export const GetAgentStatus = (resumeId) => api.get(`api/agent/status/${resumeId
 export const ResetAgentChat = (resumeId) => api.post(`api/agent/reset/${resumeId}`);
 
 export const SkipAgentQuestion = (data) => api.post('api/agent/skip', data);
+
+export const AnalyzeATS = (data) => api.post('api/agent/ats-analyze', data);
+
+export const CheckGrammar = (data) => api.post('api/agent/grammar-check', data);

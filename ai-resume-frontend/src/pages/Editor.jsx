@@ -1,16 +1,17 @@
 // src/pages/Editor.jsx
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight, Sparkles, MessageSquare, PenLine, ChevronDown, Target, Zap } from 'lucide-react';
+import { Settings, Download, Share2, Send, Bot, User, ArrowLeft, RefreshCw, Loader2, FileText, ChevronRight, Sparkles, MessageSquare, PenLine, ChevronDown, Target, Zap, Mic, MicOff, Volume2, VolumeX, CheckCircle, XCircle, AlertTriangle, Search } from 'lucide-react';
 import { GetResumeById, RecompilePdf, DownloadPdf, ChangeTemplate, UpdateResumeData } from '../services/resume.api';
 import { baseURL } from '../services/http';
-import { StartAgentChat, MsgAgent, SkipAgentQuestion } from '../services/agent.api';
+import { StartAgentChat, MsgAgent, SkipAgentQuestion, AnalyzeATS, CheckGrammar } from '../services/agent.api';
 import { toggleResumePublicStatus } from '../services/http';
 import { getAllTemplates } from '../services/template.api';
 import { GridScan } from '../components/ui/gridScan';
 import DotGrid from '../components/ui/dotGrid';
 import EditForm from '../components/EditForm';
+import { useVoice } from '../hooks/useVoice';
 
 
 
@@ -37,6 +38,23 @@ const Editor = () => {
     const [editSaving, setEditSaving] = useState(false);
     const [isPublic, setIsPublic] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
+
+    // ATS Analyzer state
+    const [atsJobDescription, setAtsJobDescription] = useState('');
+    const [atsAnalysis, setAtsAnalysis] = useState(null);
+    const [atsLoading, setAtsLoading] = useState(false);
+
+    // Grammar Checker state
+    const [showGrammarPanel, setShowGrammarPanel] = useState(false);
+    const [grammarAnalysis, setGrammarAnalysis] = useState(null);
+    const [grammarLoading, setGrammarLoading] = useState(false);
+
+    // Voice I/O
+    const {
+        isRecording, startRecording, stopRecording,
+        speak, stopSpeaking, isSpeaking,
+        speechSupported, voiceOutputEnabled, toggleVoiceOutput
+    } = useVoice();
 
 
     // Fetch Resume & Templates on Mount
@@ -260,6 +278,86 @@ const Editor = () => {
         }
     };
 
+    // ── ATS Job Description Analyzer ────────────────────────────────
+    const handleAtsAnalyze = async () => {
+        if (!atsJobDescription.trim() || atsLoading) return;
+        setAtsLoading(true);
+        try {
+            const res = await AnalyzeATS({ resumeId: id, jobDescription: atsJobDescription });
+            if (res.data?.data?.analysis) {
+                setAtsAnalysis(res.data.data.analysis);
+            }
+        } catch (err) {
+            console.error("ATS analysis failed:", err);
+        } finally {
+            setAtsLoading(false);
+        }
+    };
+
+    // ── Grammar & Tone Checker ──────────────────────────────────────
+    const handleGrammarCheck = async () => {
+        if (grammarLoading) return;
+        setGrammarLoading(true);
+        setShowGrammarPanel(true);
+        try {
+            const res = await CheckGrammar({ resumeId: id });
+            if (res.data?.data?.analysis) {
+                setGrammarAnalysis(res.data.data.analysis);
+            }
+        } catch (err) {
+            console.error("Grammar check failed:", err);
+        } finally {
+            setGrammarLoading(false);
+        }
+    };
+
+    const handleAcceptGrammarFix = async (issue) => {
+        if (!resumeData) return;
+        const newData = JSON.parse(JSON.stringify(resumeData));
+        try {
+            if (issue.section === 'achievements') {
+                if (newData.achievements && newData.achievements[issue.arrayIndex]) {
+                    newData.achievements[issue.arrayIndex] = issue.suggestion;
+                }
+            } else if (['experience', 'projects'].includes(issue.section)) {
+                const entry = newData[issue.section]?.[issue.arrayIndex];
+                if (entry?.highlights?.[issue.subIndex] !== undefined) {
+                    entry.highlights[issue.subIndex] = issue.suggestion;
+                }
+            }
+            await handleEditSave(newData);
+            // Remove this issue from the list
+            setGrammarAnalysis(prev => ({
+                ...prev,
+                issues: prev.issues.filter(i => i !== issue),
+            }));
+        } catch (err) {
+            console.error("Failed to apply grammar fix:", err);
+        }
+    };
+
+    // ── Voice handlers ──────────────────────────────────────────────
+    const handleVoiceInput = useCallback(() => {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording((transcript) => {
+                setInputMessage(transcript);
+            });
+        }
+    }, [isRecording, startRecording, stopRecording]);
+
+    // Auto-speak AI responses when voice output is enabled
+    const lastMessageRef = useRef(null);
+    useEffect(() => {
+        if (!voiceOutputEnabled || messages.length === 0) return;
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.role === 'assistant' && lastMsg.content !== lastMessageRef.current) {
+            lastMessageRef.current = lastMsg.content;
+            speak(lastMsg.content);
+        }
+    }, [messages, voiceOutputEnabled, speak]);
+
     if (loading) {
         return (
             <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -289,26 +387,34 @@ const Editor = () => {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleGrammarCheck}
+                        disabled={grammarLoading}
+                        className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-amber-50 hover:text-amber-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 border border-transparent hover:border-amber-200"
+                    >
+                        {grammarLoading ? <Loader2 size={16} className="animate-spin" /> : <AlertTriangle size={16} />}
+                        Grammar Check
+                    </button>
                     <button
                         onClick={handleRecompile}
                         disabled={recompiling}
-                        className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                     >
-                        <RefreshCw size={18} className={recompiling ? 'animate-spin' : ''} />
-                        {recompiling ? 'Recompiling...' : 'Recompile PDF'}
+                        <RefreshCw size={16} className={recompiling ? 'animate-spin' : ''} />
+                        {recompiling ? 'Recompiling...' : 'Recompile'}
                     </button>
                     <button
                         onClick={handleDownload}
-                        className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
                     >
-                        <Download size={18} /> Download PDF
+                        <Download size={16} /> Download
                     </button>
                     <button
                         onClick={() => setShowShareModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
                     >
-                        <Share2 size={18} /> Share
+                        <Share2 size={16} /> Share
                     </button>
                 </div>
             </header>
@@ -481,50 +587,215 @@ const Editor = () => {
                     </div>
 
                     {/* ATS Score Panel (collapsible) */}
-                    {showAtsPanel && qualityScore && (
-                        <div className="bg-white border-b border-slate-200 p-4 animate-in slide-in-from-top duration-300">
+                    {showAtsPanel && (
+                        <div className="bg-white border-b border-slate-200 p-4 animate-in slide-in-from-top duration-300 max-h-[60vh] overflow-y-auto">
                             <div className="flex items-center justify-between mb-3">
                                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                    <Target size={16} className="text-blue-600" /> ATS Score Breakdown
+                                    <Target size={16} className="text-blue-600" /> ATS Score & Job Match
                                 </h4>
                                 <button onClick={() => setShowAtsPanel(false)} className="text-slate-400 hover:text-slate-600">
                                     <ChevronDown size={16} />
                                 </button>
                             </div>
 
-                            {/* Category Bars */}
-                            <div className="space-y-2 mb-4">
-                                {qualityScore.breakdown?.map((cat, i) => (
-                                    <div key={i}>
-                                        <div className="flex justify-between text-xs mb-0.5">
-                                            <span className="font-medium text-slate-600">{cat.category}</span>
-                                            <span className="text-slate-500">{cat.score}/{cat.maxScore}</span>
-                                        </div>
-                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full rounded-full transition-all duration-500 ${(cat.score / cat.maxScore) >= 0.8 ? 'bg-emerald-500' :
-                                                    (cat.score / cat.maxScore) >= 0.5 ? 'bg-amber-500' : 'bg-red-400'
-                                                    }`}
-                                                style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
-                                            />
-                                        </div>
+                            {/* Quality Score Breakdown */}
+                            {qualityScore && (
+                                <>
+                                    <div className="space-y-2 mb-4">
+                                        {qualityScore.breakdown?.map((cat, i) => (
+                                            <div key={i}>
+                                                <div className="flex justify-between text-xs mb-0.5">
+                                                    <span className="font-medium text-slate-600">{cat.category}</span>
+                                                    <span className="text-slate-500">{cat.score}/{cat.maxScore}</span>
+                                                </div>
+                                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-500 ${(cat.score / cat.maxScore) >= 0.8 ? 'bg-emerald-500' : (cat.score / cat.maxScore) >= 0.5 ? 'bg-amber-500' : 'bg-red-400'}`}
+                                                        style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                    {qualityScore.tips?.length > 0 && (
+                                        <div className="space-y-1.5 mb-4">
+                                            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                                <Zap size={12} className="text-amber-500" /> Tips to Improve
+                                            </h5>
+                                            {qualityScore.tips.map((tip, i) => (
+                                                <p key={i} className="text-xs text-slate-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">{tip}</p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {/* JD Match Analyzer */}
+                            <div className="border-t border-slate-100 pt-3 mt-2">
+                                <h5 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-2">
+                                    <Search size={12} className="text-violet-500" /> Match Against Job Description
+                                </h5>
+                                <textarea
+                                    value={atsJobDescription}
+                                    onChange={(e) => setAtsJobDescription(e.target.value)}
+                                    placeholder="Paste a job description here to see how well your resume matches..."
+                                    className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none focus:border-blue-300 focus:bg-white transition-all"
+                                />
+                                <button
+                                    onClick={handleAtsAnalyze}
+                                    disabled={!atsJobDescription.trim() || atsLoading}
+                                    className="mt-2 w-full py-2 px-4 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {atsLoading ? <><Loader2 size={14} className="animate-spin" /> Analyzing...</> : <><Target size={14} /> Analyze Match</>}
+                                </button>
+
+                                {/* ATS Analysis Results */}
+                                {atsAnalysis && (
+                                    <div className="mt-3 space-y-3 animate-in fade-in duration-300">
+                                        {/* Match Score */}
+                                        <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-lg font-black border-4 shrink-0 ${atsAnalysis.matchScore >= 75 ? 'border-emerald-400 text-emerald-700 bg-emerald-50' :
+                                                    atsAnalysis.matchScore >= 50 ? 'border-amber-400 text-amber-700 bg-amber-50' :
+                                                        'border-red-400 text-red-700 bg-red-50'
+                                                }`}>
+                                                {atsAnalysis.matchScore}%
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-slate-700">JD Match Score</p>
+                                                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{atsAnalysis.summary}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Section Scores */}
+                                        {atsAnalysis.sectionScores && (
+                                            <div className="space-y-1.5">
+                                                {Object.entries(atsAnalysis.sectionScores).map(([key, val]) => (
+                                                    <div key={key}>
+                                                        <div className="flex justify-between text-[11px] mb-0.5">
+                                                            <span className="font-medium text-slate-600 capitalize">{key}</span>
+                                                            <span className="text-slate-500">{val.score}%</span>
+                                                        </div>
+                                                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className={`h-full rounded-full ${val.score >= 75 ? 'bg-emerald-500' : val.score >= 50 ? 'bg-amber-500' : 'bg-red-400'}`} style={{ width: `${val.score}%` }} />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Keywords */}
+                                        <div className="space-y-2">
+                                            {atsAnalysis.matchedKeywords?.length > 0 && (
+                                                <div>
+                                                    <p className="text-[11px] font-bold text-emerald-700 mb-1 flex items-center gap-1"><CheckCircle size={11} /> Matched Keywords</p>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {atsAnalysis.matchedKeywords.map((kw, i) => (
+                                                            <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] rounded-full border border-emerald-200 font-medium">{kw}</span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {atsAnalysis.missingKeywords?.length > 0 && (
+                                                <div>
+                                                    <p className="text-[11px] font-bold text-red-600 mb-1 flex items-center gap-1"><XCircle size={11} /> Missing Keywords</p>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {atsAnalysis.missingKeywords.map((kw, i) => (
+                                                            <span key={i} className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] rounded-full border border-red-200 font-medium">{kw}</span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Suggestions */}
+                                        {atsAnalysis.suggestions?.length > 0 && (
+                                            <div className="space-y-1">
+                                                <p className="text-[11px] font-bold text-slate-600 flex items-center gap-1"><Zap size={11} className="text-amber-500" /> Suggestions</p>
+                                                {atsAnalysis.suggestions.map((s, i) => (
+                                                    <p key={i} className="text-[11px] text-slate-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">{s}</p>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Grammar & Tone Panel */}
+                    {showGrammarPanel && (
+                        <div className="bg-white border-b border-slate-200 p-4 animate-in slide-in-from-top duration-300 max-h-[50vh] overflow-y-auto">
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                    <AlertTriangle size={16} className="text-amber-500" /> Grammar & Tone
+                                </h4>
+                                <button onClick={() => setShowGrammarPanel(false)} className="text-slate-400 hover:text-slate-600">
+                                    <ChevronDown size={16} />
+                                </button>
                             </div>
 
-                            {/* Tips */}
-                            {qualityScore.tips?.length > 0 && (
-                                <div className="space-y-1.5">
-                                    <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                        <Zap size={12} className="text-amber-500" /> Tips to Improve
-                                    </h5>
-                                    {qualityScore.tips.map((tip, i) => (
-                                        <p key={i} className="text-xs text-slate-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
-                                            {tip}
-                                        </p>
-                                    ))}
+                            {grammarLoading ? (
+                                <div className="flex items-center justify-center py-8 gap-2 text-slate-500 text-sm">
+                                    <Loader2 size={18} className="animate-spin" /> Analyzing your writing...
                                 </div>
-                            )}
+                            ) : grammarAnalysis ? (
+                                <div className="space-y-3">
+                                    {/* Overall Score */}
+                                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className={`px-3 py-1.5 rounded-lg text-sm font-black ${grammarAnalysis.overallScore >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                                                grammarAnalysis.overallScore >= 60 ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-red-100 text-red-700'
+                                            }`}>
+                                            {grammarAnalysis.overallScore}/100
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-xs font-bold text-slate-700 capitalize">Tone: {grammarAnalysis.overallTone}</p>
+                                            <p className="text-[11px] text-slate-500 mt-0.5">{grammarAnalysis.summary}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Issues */}
+                                    {grammarAnalysis.issues?.length === 0 ? (
+                                        <div className="text-center py-4">
+                                            <CheckCircle size={24} className="text-emerald-500 mx-auto mb-2" />
+                                            <p className="text-xs font-bold text-emerald-700">No issues found! Your writing is clean.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <p className="text-[11px] font-bold text-slate-500">{grammarAnalysis.issues.length} issue{grammarAnalysis.issues.length > 1 ? 's' : ''} found</p>
+                                            {grammarAnalysis.issues.map((issue, i) => (
+                                                <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${issue.type === 'grammar' ? 'bg-red-100 text-red-700' :
+                                                                issue.type === 'weak_verb' ? 'bg-orange-100 text-orange-700' :
+                                                                    issue.type === 'tone' ? 'bg-purple-100 text-purple-700' :
+                                                                        'bg-blue-100 text-blue-700'
+                                                            }`}>{issue.type?.replace('_', ' ')}</span>
+                                                        <span className="text-[10px] text-slate-400">{issue.context}</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-red-600 line-through">{issue.original}</p>
+                                                    <p className="text-[11px] text-emerald-700 font-medium">{issue.suggestion}</p>
+                                                    {issue.explanation && <p className="text-[10px] text-slate-400 italic">{issue.explanation}</p>}
+                                                    <div className="flex gap-2 pt-1">
+                                                        <button
+                                                            onClick={() => handleAcceptGrammarFix(issue)}
+                                                            className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-colors"
+                                                        >
+                                                            Accept Fix
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setGrammarAnalysis(prev => ({ ...prev, issues: prev.issues.filter(is => is !== issue) }))}
+                                                            className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-600 text-[10px] font-bold rounded-lg transition-colors"
+                                                        >
+                                                            Dismiss
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : null}
                         </div>
                     )}
 
@@ -605,32 +876,83 @@ const Editor = () => {
                             </div>
 
                             {/* Input Area */}
-                            <div className="p-5 bg-white border-t border-slate-200 z-20">
+                            <div className="p-4 bg-white border-t border-slate-200 z-20">
+                                {/* Voice Output Toggle */}
+                                <div className="flex items-center justify-between mb-2 px-1">
+                                    <div className="flex items-center gap-2">
+                                        {speechSupported && (
+                                            <button
+                                                onClick={toggleVoiceOutput}
+                                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${voiceOutputEnabled
+                                                        ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                                        : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600'
+                                                    }`}
+                                                title={voiceOutputEnabled ? 'Voice output ON' : 'Voice output OFF'}
+                                            >
+                                                {voiceOutputEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                                                {voiceOutputEnabled ? 'Voice On' : 'Voice Off'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {isSpeaking && (
+                                        <div className="flex items-center gap-1 text-violet-500">
+                                            <div className="flex gap-0.5 items-end h-3">
+                                                <div className="w-0.5 bg-violet-400 rounded-full animate-pulse" style={{ height: '30%', animationDelay: '0ms' }}></div>
+                                                <div className="w-0.5 bg-violet-400 rounded-full animate-pulse" style={{ height: '60%', animationDelay: '150ms' }}></div>
+                                                <div className="w-0.5 bg-violet-400 rounded-full animate-pulse" style={{ height: '100%', animationDelay: '300ms' }}></div>
+                                                <div className="w-0.5 bg-violet-400 rounded-full animate-pulse" style={{ height: '60%', animationDelay: '450ms' }}></div>
+                                                <div className="w-0.5 bg-violet-400 rounded-full animate-pulse" style={{ height: '30%', animationDelay: '600ms' }}></div>
+                                            </div>
+                                            <span className="text-[10px] font-medium">Speaking...</span>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <form onSubmit={handleSendMessage} className="relative group">
                                     <input
                                         type="text"
                                         value={inputMessage}
                                         onChange={(e) => setInputMessage(e.target.value)}
-                                        placeholder="Type your answer..."
-                                        className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-slate-400 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400 text-slate-700 shadow-inner relative z-10"
+                                        placeholder={isRecording ? '🎤 Listening...' : 'Type or speak your answer...'}
+                                        className={`w-full pl-5 pr-36 py-4 bg-slate-50 border rounded-2xl focus:outline-none focus:border-slate-400 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400 text-slate-700 shadow-inner relative z-10 ${isRecording ? 'border-red-300 bg-red-50/50' : 'border-slate-200'
+                                            }`}
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={handleSkip}
-                                        disabled={chatLoading}
-                                        className="absolute right-12 top-2 p-2 px-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium z-20 shadow-sm mr-2"
-                                    >
-                                        Skip
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={!inputMessage.trim() || chatLoading}
-                                        className="absolute right-2 top-2 p-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 z-20 shadow-sm"
-                                    >
-                                        <Send size={18} strokeWidth={2.5} />
-                                    </button>
+                                    <div className="absolute right-2 top-2 flex items-center gap-1 z-20">
+                                        {/* Mic Button */}
+                                        {speechSupported && (
+                                            <button
+                                                type="button"
+                                                onClick={handleVoiceInput}
+                                                disabled={chatLoading}
+                                                className={`p-2 rounded-xl transition-all disabled:opacity-50 ${isRecording
+                                                        ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30'
+                                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                                                    }`}
+                                                title={isRecording ? 'Stop recording' : 'Start recording'}
+                                            >
+                                                {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+                                            </button>
+                                        )}
+                                        {/* Skip Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handleSkip}
+                                            disabled={chatLoading}
+                                            className="p-2 px-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium shadow-sm"
+                                        >
+                                            Skip
+                                        </button>
+                                        {/* Send Button */}
+                                        <button
+                                            type="submit"
+                                            disabled={!inputMessage.trim() || chatLoading}
+                                            className="p-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95 shadow-sm"
+                                        >
+                                            <Send size={16} strokeWidth={2.5} />
+                                        </button>
+                                    </div>
                                 </form>
-                                <p className="text-center text-[10px] text-slate-400 mt-3 font-medium">
+                                <p className="text-center text-[10px] text-slate-400 mt-2.5 font-medium">
                                     AI-generated content may be inaccurate. Check important details.
                                 </p>
                             </div>

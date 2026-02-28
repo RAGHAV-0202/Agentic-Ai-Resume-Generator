@@ -380,6 +380,69 @@ const populateSkills = (latex, skills) => {
 };
 
 /**
+ * Populate custom sections — appends LaTeX blocks before \end{document}
+ * These are user-defined sections not part of the fixed template schema.
+ */
+const populateCustomSections = (latex, customSections) => {
+  if (!customSections || customSections.length === 0) return latex;
+
+  let customLatex = "\n\n";
+
+  customSections.forEach((section) => {
+    if (!section.title) return;
+
+    const sectionTitle = escapeLatex(section.title);
+
+    if (section.type === 'entries' && section.entries && section.entries.length > 0) {
+      // Structured entries (similar to experience/projects)
+      customLatex += `%-----------${sectionTitle.toUpperCase()}-----------\n`;
+      customLatex += `\\section{${sectionTitle}}\n`;
+      customLatex += `  \\resumeSubHeadingListStart\n`;
+
+      section.entries.forEach((entry) => {
+        if (!entry.title && !entry.subtitle) return;
+        const title = escapeLatex(entry.title || "");
+        const subtitle = escapeLatex(entry.subtitle || "");
+        const date = escapeLatex(entry.date || "");
+
+        customLatex += `    \\resumeSubheading{${title}}{${date}}{${subtitle}}{}\n`;
+
+        const highlights = (entry.highlights || []).filter(h => h && h !== "_skipped" && h.trim());
+        if (highlights.length > 0) {
+          customLatex += `      \\resumeItemListStart\n`;
+          highlights.forEach((h) => {
+            customLatex += `        \\resumeItem{${escapeLatex(h)}}\n`;
+          });
+          customLatex += `      \\resumeItemListEnd\n`;
+        }
+      });
+
+      customLatex += `  \\resumeSubHeadingListEnd\n\n`;
+    } else if (section.items && section.items.length > 0) {
+      // Simple list type
+      const validItems = section.items.filter(i => i && i.text && i.text.trim() && i.text !== "_skipped");
+      if (validItems.length === 0) return;
+
+      customLatex += `%-----------${sectionTitle.toUpperCase()}-----------\n`;
+      customLatex += `\\section{${sectionTitle}}\n`;
+      customLatex += `  \\resumeItemListStart\n`;
+
+      validItems.forEach((item) => {
+        customLatex += `    \\resumeItem{${escapeLatex(item.text)}}\n`;
+      });
+
+      customLatex += `  \\resumeItemListEnd\n\n`;
+    }
+  });
+
+  // Insert before \end{document} if it exists, otherwise append
+  if (latex.includes("\\end{document}")) {
+    return latex.replace("\\end{document}", customLatex + "\\end{document}");
+  }
+  return latex + customLatex;
+};
+
+/**
  * Main function: Generate complete LaTeX from template and data
  */
 export const generateLatex = (templateString, resumeData) => {
@@ -398,7 +461,10 @@ export const generateLatex = (templateString, resumeData) => {
   latex = populateSkills(latex, resumeData.skills);
   latex = populateAchievements(latex, resumeData.achievements);
 
-  // Step 4: Clean up any remaining placeholders
+  // Step 4: Populate custom sections (before cleanup)
+  latex = populateCustomSections(latex, resumeData.customSections);
+
+  // Step 5: Clean up any remaining placeholders
   latex = latex.replace(/{{.*?}}/g, "");
 
   return latex;

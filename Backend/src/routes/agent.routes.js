@@ -9,6 +9,7 @@ import {
   resetAgenticConversation,
   skipCurrentField,
 } from "../controllers/agent.controllers.js";
+import { atsAnalyze, grammarCheck } from "../controllers/analysis.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
@@ -33,5 +34,9 @@ router.post("/reset/:resumeId", resetAgenticConversation);
 
 // Skip current field
 router.post("/skip", skipCurrentField);
+
+// AI Analysis endpoints
+router.post("/ats-analyze", atsAnalyze);
+router.post("/grammar-check", grammarCheck);
 
 export default router;
