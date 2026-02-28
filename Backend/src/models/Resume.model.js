@@ -169,6 +169,11 @@ const resumeSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    sectionOrder: {
+      type: [String],
+      default: ['education', 'experience', 'projects', 'skills', 'achievements', 'custom'],
+    },
   },
   {
     timestamps: true,
