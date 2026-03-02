@@ -271,6 +271,11 @@ const SECTION_ORDER = ["personal", "education", "experience", "projects", "skill
  *                              Uses the conversationState.currentSection so we never revisit completed sections.
  */
 const computeCurrentFocus = (resumeData, minSection = "personal") => {
+  // If already marked complete, don't loop back to the beginning
+  if (minSection === "complete") {
+    return { section: "complete", field: "complete", arrayIndex: 0, askAddMore: false };
+  }
+
   // Find the starting index — never go backwards
   const minIndex = Math.max(0, SECTION_ORDER.indexOf(minSection));
   const sectionsToCheck = SECTION_ORDER.slice(minIndex);
