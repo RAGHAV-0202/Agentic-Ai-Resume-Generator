@@ -51,6 +51,13 @@ const replaceSimplePlaceholders = (latex, data) => {
     result = result.replace(/{{PERSONAL\.WEBSITE}}/g, escapeLatex(data.personal.website || ""));
   }
 
+  // Summary
+  if (data.summary) {
+    result = result.replace(/{{SUMMARY}}/g, escapeLatex(data.summary));
+  } else {
+    result = result.replace(/{{SUMMARY}}/g, "");
+  }
+
   return result;
 };
 
@@ -109,6 +116,14 @@ const handleConditionals = (latex, data) => {
     result = result.replace(/{{\/IF_WEBSITE}}/g, "");
   } else {
     result = result.replace(/{{#IF_WEBSITE}}[\s\S]*?{{\/IF_WEBSITE}}/g, "");
+  }
+
+  // Summary conditional
+  if (data.summary && data.summary.trim()) {
+    result = result.replace(/{{#IF_SUMMARY}}/g, "");
+    result = result.replace(/{{\/IF_SUMMARY}}/g, "");
+  } else {
+    result = result.replace(/{{#IF_SUMMARY}}[\s\S]*?{{\/IF_SUMMARY}}/g, "");
   }
 
   // Education section conditional
@@ -474,43 +489,37 @@ const populateCustomSections = (latex, customSections) => {
 const INJECTIONS = [
   {
     placeholder: "{{CUSTOM_SKILLS_BLOCK}}",
-    // Inject after the last known skill conditional block
     afterPattern: /{{\/IF_LIBRARIES}}/,
-    // If the pattern isn't found, try injecting before the closing skill item
-    fallbackPattern: /}}[\s]*\n[\s]*\}\}/,
-    defaultValue: "",
+    fallbackPattern: /}}\s*\n\s*\}\}/,
   },
-  // Future example:
-  // {
-  //   placeholder: "{{CERTIFICATIONS_BLOCK}}",
-  //   afterPattern: /{{\/IF_ACHIEVEMENTS}}/,
-  //   fallbackPattern: /\\end{document}/,
-  //   defaultValue: "",
-  // },
+  {
+    placeholder: "{{#IF_SUMMARY}}",
+    afterPattern: /\\end\{center\}/,
+    fullBlock: "\n{{#IF_SUMMARY}}\n\\section{Summary}\n{{SUMMARY}}\n{{/IF_SUMMARY}}",
+  },
 ];
 
 const preprocessTemplate = (templateString) => {
   let result = templateString;
 
   for (const injection of INJECTIONS) {
-    // Skip if placeholder already exists in template
     if (result.includes(injection.placeholder)) continue;
 
-    // Try primary injection point
     const primaryMatch = result.match(injection.afterPattern);
     if (primaryMatch) {
       const insertPos = primaryMatch.index + primaryMatch[0].length;
-      result = result.slice(0, insertPos) + "\n     " + injection.placeholder + result.slice(insertPos);
+      const text = injection.fullBlock || ("\n     " + injection.placeholder);
+      result = result.slice(0, insertPos) + text + result.slice(insertPos);
       console.log(`📝 Auto-injected ${injection.placeholder} into template`);
       continue;
     }
 
-    // Try fallback injection point
     if (injection.fallbackPattern) {
       const fallbackMatch = result.match(injection.fallbackPattern);
       if (fallbackMatch) {
         const insertPos = fallbackMatch.index;
-        result = result.slice(0, insertPos) + "\n     " + injection.placeholder + "\n" + result.slice(insertPos);
+        const text = injection.fullBlock || ("\n     " + injection.placeholder + "\n");
+        result = result.slice(0, insertPos) + text + result.slice(insertPos);
         console.log(`📝 Auto-injected ${injection.placeholder} (fallback) into template`);
       }
     }

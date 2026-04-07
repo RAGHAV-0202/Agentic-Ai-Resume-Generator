@@ -317,13 +317,16 @@ export const updateResumeData = asyncHandler(async (req, res) => {
 
   // Deep merge: overwrite only provided fields
   if (data) {
-    const sections = ["personal", "education", "experience", "projects", "skills", "achievements", "publications"];
+    const sections = ["personal", "summary", "education", "experience", "projects", "skills", "achievements", "publications"];
     for (const section of sections) {
       if (data[section] === undefined) continue;
 
       if (section === "achievements") {
         // Flat array of strings
         resume.data.achievements = data.achievements;
+      } else if (typeof data[section] === "string") {
+        // String sections (summary)
+        resume.data[section] = data[section];
       } else if (Array.isArray(data[section])) {
         // Array sections (education, experience, projects, publications)
         resume.data[section] = data[section];

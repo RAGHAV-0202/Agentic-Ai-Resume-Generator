@@ -46,6 +46,12 @@ const MIGRATIONS = [
     fallbackPattern: /\{\{\/IF_TOOLS\}\}/,
     insertText: "\n     {{CUSTOM_SKILLS_BLOCK}}",
   },
+  {
+    name: "Add {{#IF_SUMMARY}} block",
+    placeholder: "{{#IF_SUMMARY}}",
+    afterPattern: /\\end\{center\}/,
+    insertText: "\n{{#IF_SUMMARY}}\n\\section{Summary}\n{{SUMMARY}}\n{{/IF_SUMMARY}}",
+  },
   // ── Future migrations go here ──────────────────────────────────
   // {
   //   name: "Add {{CERTIFICATIONS_BLOCK}}",

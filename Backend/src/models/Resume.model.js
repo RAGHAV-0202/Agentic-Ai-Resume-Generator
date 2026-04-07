@@ -83,6 +83,8 @@ const resumeSchema = new mongoose.Schema(
         website: { type: String, default: '' },
       },
 
+      summary: { type: String, default: '' },
+
       education: [
         {
           institution: { type: String, default: '' },
