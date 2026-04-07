@@ -199,15 +199,57 @@ const ProjectsSection = ({ data = [], onChange }) => {
     );
 };
 
-const SkillsSection = ({ data = {}, onChange }) => (
-    <div className="space-y-1">
-        <ArrayField label="Languages" items={data.languages} onChange={(v) => onChange({ ...data, languages: v })} placeholder="e.g., Python" />
-        <ArrayField label="Frameworks & Databases" items={data.frameworks} onChange={(v) => onChange({ ...data, frameworks: v })} placeholder="e.g., React" />
-        <ArrayField label="Developer Tools" items={data.developerTools} onChange={(v) => onChange({ ...data, developerTools: v })} placeholder="e.g., Git" />
-        <ArrayField label="Libraries" items={data.libraries} onChange={(v) => onChange({ ...data, libraries: v })} placeholder="e.g., Pandas" />
-        <ArrayField label="Technologies" items={data.technologies} onChange={(v) => onChange({ ...data, technologies: v })} placeholder="e.g., Redis" />
-    </div>
-);
+const SkillsSection = ({ data = {}, onChange }) => {
+    const customSkills = data.customSkills || [];
+
+    const updateCustomLabel = (idx, label) => {
+        const updated = [...customSkills];
+        updated[idx] = { ...updated[idx], label };
+        onChange({ ...data, customSkills: updated });
+    };
+
+    const updateCustomItems = (idx, items) => {
+        const updated = [...customSkills];
+        updated[idx] = { ...updated[idx], items };
+        onChange({ ...data, customSkills: updated });
+    };
+
+    const addCustomCategory = () => {
+        onChange({ ...data, customSkills: [...customSkills, { label: '', items: [] }] });
+    };
+
+    const removeCustomCategory = (idx) => {
+        onChange({ ...data, customSkills: customSkills.filter((_, i) => i !== idx) });
+    };
+
+    return (
+        <div className="space-y-1">
+            <ArrayField label="Languages" items={data.languages} onChange={(v) => onChange({ ...data, languages: v })} placeholder="e.g., Python" />
+            <ArrayField label="Frameworks & Databases" items={data.frameworks} onChange={(v) => onChange({ ...data, frameworks: v })} placeholder="e.g., React" />
+            <ArrayField label="Developer Tools" items={data.developerTools} onChange={(v) => onChange({ ...data, developerTools: v })} placeholder="e.g., Git" />
+            <ArrayField label="Libraries" items={data.libraries} onChange={(v) => onChange({ ...data, libraries: v })} placeholder="e.g., Pandas" />
+            <ArrayField label="Technologies" items={data.technologies} onChange={(v) => onChange({ ...data, technologies: v })} placeholder="e.g., Redis" />
+
+            {/* Custom Skill Categories */}
+            {customSkills.map((cs, idx) => (
+                <div key={idx} className="border border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-3 mb-2 bg-slate-50/50 dark:bg-slate-800/50 relative">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Custom Category {idx + 1}</span>
+                        <button onClick={() => removeCustomCategory(idx)} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Remove category">
+                            <Trash2 size={14} />
+                        </button>
+                    </div>
+                    <Field label="Category Name" value={cs.label} onChange={(v) => updateCustomLabel(idx, v)} placeholder="e.g., Hardware, ML, Cloud Platforms" />
+                    <ArrayField label={cs.label || 'Items'} items={cs.items} onChange={(items) => updateCustomItems(idx, items)} placeholder={`e.g., ${cs.label ? cs.label + ' item' : 'item'}`} />
+                </div>
+            ))}
+
+            <button onClick={addCustomCategory} className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-xl text-sm text-blue-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors w-full justify-center font-medium mt-3">
+                <Plus size={16} /> Add Custom Category
+            </button>
+        </div>
+    );
+};
 
 const AchievementsSection = ({ data = [], onChange }) => (
     <ArrayField label="Achievements" items={data} onChange={onChange} placeholder="e.g., Winner of HackMIT 2023" />

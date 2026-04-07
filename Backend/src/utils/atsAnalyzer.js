@@ -116,6 +116,7 @@ const extractResumeText = (resumeData) => {
         ...(skills.developerTools || []),
         ...(skills.libraries || []),
         ...(skills.technologies || []),
+        ...((skills.customSkills || []).flatMap(cs => cs.items || [])),
     ].filter(Boolean);
     if (allSkills.length) parts.push(`Skills: ${allSkills.join(", ")}`);
 

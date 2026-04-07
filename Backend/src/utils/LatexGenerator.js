@@ -136,12 +136,14 @@ const handleConditionals = (latex, data) => {
   }
 
   // Skills section conditional
+  const hasCustomSkills = data.skills?.customSkills?.some(cs => cs.label && cs.items?.length > 0);
   if (
     (data.skills?.languages && data.skills.languages.length > 0) ||
     (data.skills?.frameworks && data.skills.frameworks.length > 0) ||
     (data.skills?.developerTools && data.skills.developerTools.length > 0) ||
     (data.skills?.libraries && data.skills.libraries.length > 0) ||
-    (data.skills?.technologies && data.skills.technologies.length > 0)
+    (data.skills?.technologies && data.skills.technologies.length > 0) ||
+    hasCustomSkills
   ) {
     result = result.replace(/{{#IF_SKILLS}}/g, "");
     result = result.replace(/{{\/IF_SKILLS}}/g, "");
@@ -375,6 +377,20 @@ const populateSkills = (latex, skills) => {
   } else {
     result = result.replace(/{{#IF_TECHNOLOGIES_SKILLS}}[\s\S]*?{{\/IF_TECHNOLOGIES_SKILLS}}/g, "");
   }
+
+  // Custom Skills — dynamically generate \textbf{Label}{: items} lines
+  let customSkillsLatex = "";
+  if (skills.customSkills && skills.customSkills.length > 0) {
+    skills.customSkills.forEach((cs) => {
+      const validItems = (cs.items || []).filter(i => i && i.trim() && i !== "_skipped");
+      if (cs.label && cs.label.trim() && validItems.length > 0) {
+        const label = escapeLatex(cs.label.trim());
+        const itemsText = validItems.map(i => escapeLatex(i)).join(", ");
+        customSkillsLatex += ` \\textbf{${label}}{: ${itemsText}} \\\\ `;
+      }
+    });
+  }
+  result = result.replace(/{{CUSTOM_SKILLS_BLOCK}}/g, customSkillsLatex);
 
   return result;
 };

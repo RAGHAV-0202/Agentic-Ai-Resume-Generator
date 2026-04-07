@@ -416,7 +416,8 @@ export const calculateCompletionPercentage = (resumeData) => {
   maxScore += weights.skills;
   if (
     resumeData.skills?.languages?.length > 0 ||
-    resumeData.skills?.technologies?.length > 0
+    resumeData.skills?.technologies?.length > 0 ||
+    resumeData.skills?.customSkills?.some(cs => cs.items?.length > 0)
   ) {
     totalScore += weights.skills;
   }
@@ -446,7 +447,8 @@ export const getMissingRequiredFields = (resumeData) => {
   // At least one skill category
   if (
     !resumeData.skills?.languages?.length &&
-    !resumeData.skills?.technologies?.length
+    !resumeData.skills?.technologies?.length &&
+    !resumeData.skills?.customSkills?.some(cs => cs.items?.length > 0)
   ) {
     missing.push({ section: "skills", field: "languages_or_technologies" });
   }

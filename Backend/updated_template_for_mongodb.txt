@@ -1,0 +1,165 @@
+%-------------------------
+% Resume in Latex
+% Author : Jake Gutierrez
+% Based off of: https://github.com/sb2nov/resume
+% License : MIT
+%------------------------
+\documentclass[letterpaper,11pt]{article}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+% Ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape {{PERSONAL.NAME}}} \\ \vspace{1pt}
+    {{PERSONAL.LOCATION}}
+    {{#IF_PHONE}} $|$ {{PERSONAL.PHONE}} {{/IF_PHONE}}
+    {{#IF_EMAIL}} $|$ \href{mailto:{{PERSONAL.EMAIL}}}{{PERSONAL.EMAIL}} {{/IF_EMAIL}}
+    \\[3pt]
+    {{#IF_LINKEDIN}}\href{https://{{PERSONAL.LINKEDIN}}}{\underline{LinkedIn}} $|$ {{/IF_LINKEDIN}}
+    {{#IF_GITHUB}}\href{https://{{PERSONAL.GITHUB}}}{\underline{Github}} $|$ {{/IF_GITHUB}}
+    {{#IF_WEBSITE}}\href{https://{{PERSONAL.WEBSITE}}}{\underline{Portfolio}}{{/IF_WEBSITE}}
+\end{center}
+%-----------EDUCATION-----------
+{{#IF_EDUCATION}}
+\section{Education}
+  \resumeSubHeadingListStart
+  {{#EDUCATION}}
+    \resumeSubheading
+      {{{INSTITUTION}}}{}
+      {{{DEGREE}}}{{{START_DATE}} -- {{END_DATE}}}
+      {{#IF_GPA}}\item\small{\textit{GPA: {{GPA}}}}\vspace{-5pt}{{/IF_GPA}}
+      {{#IF_COURSEWORK}}\item\small{\textit{Coursework: {{COURSEWORK}}}}\vspace{-5pt}{{/IF_COURSEWORK}}
+  {{/EDUCATION}}
+  \resumeSubHeadingListEnd
+{{/IF_EDUCATION}}
+%-----------TECHNICAL SKILLS-----------
+{{#IF_SKILLS}}
+\section{Technical Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     {{#IF_LANGUAGES}} \textbf{Languages}{: {{LANGUAGES}}} \\ {{/IF_LANGUAGES}}
+     {{#IF_FRAMEWORKS}} \textbf{Frameworks \& Databases}{: {{FRAMEWORKS}}} \\ {{/IF_FRAMEWORKS}}
+     {{#IF_TOOLS}} \textbf{Developer Tools}{: {{TOOLS}}} \\ {{/IF_TOOLS}}
+     {{#IF_LIBRARIES}} \textbf{Libraries}{: {{LIBRARIES}}} \\ {{/IF_LIBRARIES}}
+     {{CUSTOM_SKILLS_BLOCK}}
+    }}
+\end{itemize}
+{{/IF_SKILLS}}
+%-----------EXPERIENCE-----------
+{{#IF_EXPERIENCE}}
+\section{Experience}
+  \resumeSubHeadingListStart
+  {{#EXPERIENCE}}
+    \resumeSubheading
+      {{{COMPANY}}}{{{START_DATE}} -- {{END_DATE}}}
+      {{{POSITION}}}{{{LOCATION}}}
+      \resumeItemListStart
+        {{#HIGHLIGHTS}}
+          % The backend automatically injects \item before the highlight text
+        {{/HIGHLIGHTS}}
+      \resumeItemListEnd
+  {{/EXPERIENCE}}
+  \resumeSubHeadingListEnd
+{{/IF_EXPERIENCE}}
+%-----------PROJECTS-----------
+{{#IF_PROJECTS}}
+\section{Projects}
+    \resumeSubHeadingListStart
+    {{#PROJECTS}}
+      \resumeProjectHeading
+          {\textbf{{{NAME}}} {{#IF_LINK}} $|$ \href{https://{{LINK}}}{\underline{Link}} {{/IF_LINK}} {{#IF_TECHNOLOGIES}} $|$ \emph{{{TECHNOLOGIES}}} {{/IF_TECHNOLOGIES}} } { {{DATE}} }
+          \resumeItemListStart
+            {{#HIGHLIGHTS}}
+              % The backend automatically injects \item before the highlight text
+            {{/HIGHLIGHTS}}
+          \resumeItemListEnd
+    {{/PROJECTS}}
+    \resumeSubHeadingListEnd
+{{/IF_PROJECTS}}
+%-------------------------------------------
+%-----------ACHIEVEMENTS-----------
+{{#IF_ACHIEVEMENTS}}
+\section{Achievements}
+\begin{itemize}[leftmargin=0.15in, label={}, itemsep=1pt, parsep=0pt]
+    \small{
+      {{#ACHIEVEMENTS}}
+        \item {{{.}}}
+      {{/ACHIEVEMENTS}}
+    }
+\end{itemize}
+{{/IF_ACHIEVEMENTS}}
+\end{document}

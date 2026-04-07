@@ -236,7 +236,7 @@ const PublicResume = () => {
                     )}
 
                     {/* Skills Section */}
-                    {skills && (skills.languages?.length > 0 || skills.frameworks?.length > 0 || skills.developerTools?.length > 0 || skills.technologies?.length > 0) && (
+                    {skills && (skills.languages?.length > 0 || skills.frameworks?.length > 0 || skills.developerTools?.length > 0 || skills.technologies?.length > 0 || skills.customSkills?.some(cs => cs.label && cs.items?.length > 0)) && (
                         <section>
                             <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
                                 <span className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center text-sm">⚡</span>
@@ -283,6 +283,16 @@ const PublicResume = () => {
                                         </div>
                                     </div>
                                 )}
+                                {skills.customSkills?.filter(cs => cs.label && cs.items?.length > 0).map((cs, idx) => (
+                                    <div key={`custom-${idx}`}>
+                                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">{cs.label}</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {cs.items.filter(i => i && i.trim()).map((item, i) => (
+                                                <span key={i} className="px-3 py-1.5 bg-white border border-slate-200 shadow-sm rounded-lg text-sm text-slate-700 font-medium">{item}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </section>
                     )}
