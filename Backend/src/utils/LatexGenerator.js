@@ -532,11 +532,11 @@ export const generateLatex = (templateString, resumeData) => {
   // Step 0: Preprocess — auto-inject missing placeholders for new features
   let latex = preprocessTemplate(templateString);
 
-  // Step 1: Replace simple placeholders
-  latex = replaceSimplePlaceholders(latex, resumeData);
-
-  // Step 2: Handle conditionals
+  // Step 1: Handle conditionals FIRST — strip absent sections entirely
   latex = handleConditionals(latex, resumeData);
+
+  // Step 2: Replace simple placeholders in remaining content
+  latex = replaceSimplePlaceholders(latex, resumeData);
 
   // Step 3: Populate arrays
   latex = populateEducation(latex, resumeData.education);
