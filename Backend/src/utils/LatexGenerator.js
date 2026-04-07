@@ -461,8 +461,67 @@ const populateCustomSections = (latex, customSections) => {
 /**
  * Main function: Generate complete LaTeX from template and data
  */
+/**
+ * TEMPLATE PREPROCESSOR
+ * Auto-injects missing placeholders into legacy templates so they work
+ * with new features without manual DB updates.
+ * 
+ * HOW TO ADD A NEW VARIABLE:
+ * 1. Add an entry to INJECTIONS below
+ * 2. Specify: placeholder name, where to inject it (after which marker), and fallback
+ * 3. That's it — old templates auto-upgrade at compile time!
+ */
+const INJECTIONS = [
+  {
+    placeholder: "{{CUSTOM_SKILLS_BLOCK}}",
+    // Inject after the last known skill conditional block
+    afterPattern: /{{\/IF_LIBRARIES}}/,
+    // If the pattern isn't found, try injecting before the closing skill item
+    fallbackPattern: /}}[\s]*\n[\s]*\}\}/,
+    defaultValue: "",
+  },
+  // Future example:
+  // {
+  //   placeholder: "{{CERTIFICATIONS_BLOCK}}",
+  //   afterPattern: /{{\/IF_ACHIEVEMENTS}}/,
+  //   fallbackPattern: /\\end{document}/,
+  //   defaultValue: "",
+  // },
+];
+
+const preprocessTemplate = (templateString) => {
+  let result = templateString;
+
+  for (const injection of INJECTIONS) {
+    // Skip if placeholder already exists in template
+    if (result.includes(injection.placeholder)) continue;
+
+    // Try primary injection point
+    const primaryMatch = result.match(injection.afterPattern);
+    if (primaryMatch) {
+      const insertPos = primaryMatch.index + primaryMatch[0].length;
+      result = result.slice(0, insertPos) + "\n     " + injection.placeholder + result.slice(insertPos);
+      console.log(`📝 Auto-injected ${injection.placeholder} into template`);
+      continue;
+    }
+
+    // Try fallback injection point
+    if (injection.fallbackPattern) {
+      const fallbackMatch = result.match(injection.fallbackPattern);
+      if (fallbackMatch) {
+        const insertPos = fallbackMatch.index;
+        result = result.slice(0, insertPos) + "\n     " + injection.placeholder + "\n" + result.slice(insertPos);
+        console.log(`📝 Auto-injected ${injection.placeholder} (fallback) into template`);
+      }
+    }
+  }
+
+  return result;
+};
+
 export const generateLatex = (templateString, resumeData) => {
-  let latex = templateString;
+  // Step 0: Preprocess — auto-inject missing placeholders for new features
+  let latex = preprocessTemplate(templateString);
 
   // Step 1: Replace simple placeholders
   latex = replaceSimplePlaceholders(latex, resumeData);
