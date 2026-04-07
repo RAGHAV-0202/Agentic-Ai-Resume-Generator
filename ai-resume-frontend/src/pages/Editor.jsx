@@ -254,12 +254,9 @@ const Editor = () => {
             if (data) {
                 if (data.resume?.data) setResumeData(data.resume.data);
                 if (data.qualityScore) setQualityScore(data.qualityScore);
-                if (data.pdfUrl) {
-                    setPdfUrl(baseURL + data.pdfUrl);
-                    setPdfTimestamp(Date.now());
-                    setPdfLoading(true);
-                }
             }
+            // Always recompile from DB after save to guarantee fresh data in PDF
+            await handleRecompile();
         } catch (error) {
             console.error("Save failed:", error);
         } finally {

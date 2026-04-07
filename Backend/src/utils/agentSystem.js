@@ -24,7 +24,12 @@ import fetch from "node-fetch";
 const GROQ_MODELS = [
   "openai/gpt-oss-120b",                          // Primary — 30 req/min, 8K tok/min
   "llama-3.3-70b-versatile",                       // Fallback 1 — 30 req/min, 12K tok/min
+  "meta-llama/llama-4-scout-17b-16e-instruct",     // Fallback 2 — 30 req/min, 30K tok/min
   "qwen/qwen3-32b",                                // Fallback 3 — 60 req/min, 6K tok/min
+  "moonshotai/kimi-k2-instruct",                   // Fallback 4 — 60 req/min, 10K tok/min
+  "openai/gpt-oss-20b",                            // Fallback 5 — lighter gpt-oss, 8K tok/min
+  "moonshotai/kimi-k2-instruct-0905",              // Fallback 6 — kimi variant, 60 req/min
+  "llama-3.1-8b-instant",                          // Fallback 7 — fastest, 14.4K req/min
 ];
 
 // Dynamic model selection — remembers last working model

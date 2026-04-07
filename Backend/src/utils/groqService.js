@@ -3,11 +3,17 @@ import fetch from "node-fetch";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-// Validated models that work with Groq
+// Validated models that work with Groq (ordered by preference)
 const VALIDATED_GROQ_MODELS = [
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
-]; // only these 2 are available 
+  "openai/gpt-oss-120b",                          // Primary — strongest, 8K tok/min
+  "llama-3.3-70b-versatile",                       // Fallback 1 — 12K tok/min
+  "meta-llama/llama-4-scout-17b-16e-instruct",     // Fallback 2 — 30K tok/min
+  "qwen/qwen3-32b",                                // Fallback 3 — 60 req/min
+  "moonshotai/kimi-k2-instruct",                   // Fallback 4 — 60 req/min, 10K tok/min
+  "openai/gpt-oss-20b",                            // Fallback 5 — lighter gpt-oss, 8K tok/min
+  "moonshotai/kimi-k2-instruct-0905",              // Fallback 6 — kimi variant, 60 req/min
+  "llama-3.1-8b-instant",                          // Fallback 7 — fastest, 14.4K req/min
+];
 
 // Mock data patterns to detect and remove
 const MOCK_PATTERNS = [

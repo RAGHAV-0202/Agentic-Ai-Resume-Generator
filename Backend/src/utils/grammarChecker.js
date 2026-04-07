@@ -15,7 +15,12 @@ dotenv.config();
 const GROQ_MODELS = [
     "openai/gpt-oss-120b",
     "llama-3.3-70b-versatile",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
     "qwen/qwen3-32b",
+    "moonshotai/kimi-k2-instruct",
+    "openai/gpt-oss-20b",
+    "moonshotai/kimi-k2-instruct-0905",
+    "llama-3.1-8b-instant",
 ];
 
 const modelState = { cooldowns: {}, preferredIndex: 0 };
