@@ -22,18 +22,18 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-
+          
             echo "📦 Pulling latest code..."
             cd /home/ubuntu/Agentic-Ai-Resume-Generator/Backend
-            git reset --hard HEAD
-            git pull origin main
-
+          
+            git fetch origin
+            git reset --hard origin/main
+          
             echo "📥 Installing dependencies..."
             npm install --production
-
+          
             echo "♻️ Restarting Resume Backend..."
-
             pm2 reload resume-backend --update-env || pm2 start src/index.js --name resume-backend
-
+          
             echo "✅ Deployment complete!"
             pm2 status
