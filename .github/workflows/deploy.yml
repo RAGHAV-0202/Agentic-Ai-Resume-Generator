@@ -1,0 +1,39 @@
+name: CI/CD - Resume Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy Resume API to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "📦 Pulling latest code..."
+            cd /home/ubuntu/Agentic-Ai-Resume-Generator/Backend
+            git reset --hard HEAD
+            git pull origin main
+
+            echo "📥 Installing dependencies..."
+            npm install --production
+
+            echo "♻️ Restarting Resume Backend..."
+
+            pm2 reload resume-backend --update-env || pm2 start src/index.js --name resume-backend
+
+            echo "✅ Deployment complete!"
+            pm2 status
