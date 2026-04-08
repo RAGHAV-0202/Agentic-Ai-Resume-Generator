@@ -11,6 +11,21 @@ const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const getLatexErrorSnippet = (logContent = "") => {
+  if (!logContent) return "";
+
+  const lines = logContent.split("\n");
+  const errorStart = lines.findIndex((line) => line.trim().startsWith("!"));
+
+  if (errorStart === -1) {
+    return lines.slice(-40).join("\n");
+  }
+
+  const start = Math.max(0, errorStart - 3);
+  const end = Math.min(lines.length, errorStart + 12);
+  return lines.slice(start, end).join("\n");
+};
+
 
 // src/utils/pdfCompiler.js
 
@@ -25,18 +40,28 @@ export const compilePDFLocal = async (latexString, resumeId) => {
   fs.writeFileSync(texPath, latexString, "utf-8");
 
   try {
-    // Run pdflatex (twice for proper formatting)
-    // Use try-catch because pdflatex might return error code even if PDF is generated
     try {
-      await execAsync(`pdflatex -interaction=nonstopmode -output-directory="${tempDir}" "${texPath}"`, {
-        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+      await execAsync("command -v pdflatex", { maxBuffer: 1024 * 1024 });
+    } catch {
+      throw new Error(
+        "pdflatex is not installed or not in PATH. Install TeX Live (e.g. sudo apt update && sudo apt install -y texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra)"
+      );
+    }
+
+    // Run twice for references/table formatting stabilization.
+    try {
+      await execAsync(`pdflatex -file-line-error -interaction=nonstopmode -output-directory="${tempDir}" "${texPath}"`, {
+        maxBuffer: 10 * 1024 * 1024,
       });
-      await execAsync(`pdflatex -interaction=nonstopmode -output-directory="${tempDir}" "${texPath}"`, {
-        maxBuffer: 10 * 1024 * 1024
+      await execAsync(`pdflatex -file-line-error -interaction=nonstopmode -output-directory="${tempDir}" "${texPath}"`, {
+        maxBuffer: 10 * 1024 * 1024,
       });
     } catch (execError) {
-      // pdflatex might return non-zero exit code even if PDF is generated
-      console.log("pdflatex returned error code, checking if PDF exists anyway...");
+      const stdErrSnippet = execError?.stderr?.split("\n").slice(0, 20).join("\n") || "";
+      console.log("pdflatex exited with non-zero status. Will verify generated PDF and inspect logs.");
+      if (stdErrSnippet) {
+        console.error("pdflatex stderr snippet:\n", stdErrSnippet);
+      }
     }
 
     // Check if PDF was generated regardless of exit code
@@ -45,11 +70,19 @@ export const compilePDFLocal = async (latexString, resumeId) => {
     if (!fs.existsSync(pdfPath)) {
       // Check log file for actual errors
       const logPath = path.join(tempDir, "resume.log");
+      let errorDetails = "";
+
       if (fs.existsSync(logPath)) {
         const logContent = fs.readFileSync(logPath, "utf-8");
-        console.error("LaTeX compilation log:", logContent);
+        errorDetails = getLatexErrorSnippet(logContent);
+        console.error("LaTeX compilation error snippet:\n", errorDetails);
       }
-      throw new Error("PDF generation failed - output file not found");
+
+      const detailedMessage = errorDetails
+        ? `PDF generation failed - output file not found. LaTeX error:\n${errorDetails}`
+        : "PDF generation failed - output file not found. Check if required LaTeX packages are installed.";
+
+      throw new Error(detailedMessage);
     }
 
     console.log("✅ PDF generated successfully!");
