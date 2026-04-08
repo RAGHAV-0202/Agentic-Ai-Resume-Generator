@@ -116,13 +116,13 @@ const PublicResume = () => {
                 <div className="p-10 space-y-12">
 
                     {/* Summary Section */}
-                    {data?.summary && data.summary.trim() && (
+                    {resumeData?.summary && resumeData.summary.trim() && (
                         <section>
                             <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-3">
                                 <span className="w-8 h-8 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center text-sm">📝</span>
                                 Summary
                             </h2>
-                            <p className="text-slate-600 leading-relaxed">{data.summary}</p>
+                            <p className="text-slate-600 leading-relaxed">{resumeData.summary}</p>
                         </section>
                     )}
 
