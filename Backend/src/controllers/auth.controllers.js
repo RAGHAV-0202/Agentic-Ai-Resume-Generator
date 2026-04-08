@@ -2,11 +2,15 @@ import User from "../models/User.model.js";
 import jwt from "jsonwebtoken"
 import bcrypt from "bcrypt"
 import crypto from "crypto"
+import { OAuth2Client } from "google-auth-library"
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import dotenv from "dotenv"
 dotenv.config()
+
+const googleClientId = process.env.GOOGLE_CLIENT_ID
+const googleOAuthClient = googleClientId ? new OAuth2Client(googleClientId) : null
 
 const generateAccessTokenRefreshToken = async (userId) => {
     try {
@@ -174,7 +178,73 @@ const UserLogout = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, null, "Logged out successfully"));
 });
 
+const GoogleLogin = asyncHandler(async (req, res) => {
+    const { idToken } = req.body
+
+    if (!googleClientId || !googleOAuthClient) {
+        throw new ApiError(500, "Google auth is not configured on server")
+    }
+
+    if (!idToken) {
+        throw new ApiError(400, "Google idToken is required")
+    }
+
+    let payload
+
+    try {
+        const ticket = await googleOAuthClient.verifyIdToken({
+            idToken,
+            audience: googleClientId
+        })
+        payload = ticket.getPayload()
+    } catch (error) {
+        throw new ApiError(401, "Invalid Google token")
+    }
+
+    if (!payload?.email || !payload?.email_verified) {
+        throw new ApiError(401, "Google account email is not verified")
+    }
+
+    let user = await User.findOne({ email: payload.email })
+
+    if (!user) {
+        const generatedPassword = crypto.randomBytes(24).toString("hex")
+        user = await User.create({
+            name: payload.name || payload.email.split("@")[0],
+            email: payload.email,
+            password: generatedPassword,
+            avatar: payload.picture || ""
+        })
+    }
+
+    const { accessToken, refreshToken } = await generateAccessTokenRefreshToken(user._id)
+
+    const options = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+        maxAge: 24 * 60 * 60 * 1000,
+        path: "/"
+    }
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(200, {
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    avatar: user.avatar
+                },
+                accessToken: accessToken
+            }, "Google login successful")
+        )
+})
+
 
 export {
-    UserLogin, UserRegister, UserLogout, isLoggedIn
+    UserLogin, UserRegister, UserLogout, isLoggedIn, GoogleLogin
 }

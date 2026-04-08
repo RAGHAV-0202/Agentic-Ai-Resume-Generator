@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Silk from '../components/ui/silk';
-import { isLoggedInAPI, loginAPI } from '../services/auth.api';
+import { googleLoginAPI, isLoggedInAPI, loginAPI } from '../services/auth.api';
 import Button from '../components/ui/Button';
 import { useEffect } from 'react';
+import GoogleAuthButton from '../components/GoogleAuthButton';
 
 function Login() {
     const navigate = useNavigate();
@@ -20,6 +21,18 @@ function Login() {
             if (response.data.statusCode === 200) navigate("/dashboard");
         } catch (err) {
             console.log("error while logging in", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const signInWithGoogle = async (idToken) => {
+        try {
+            setIsLoading(true);
+            const response = await googleLoginAPI({ idToken });
+            if (response.data.statusCode === 200) navigate("/dashboard");
+        } catch (err) {
+            console.log("error while logging in with google", err);
         } finally {
             setIsLoading(false);
         }
@@ -151,6 +164,17 @@ function Login() {
                         >
                             Sign In
                         </Button>
+
+                        <div className="relative my-1">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-white/10" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-slate-900/50 px-2 text-slate-400">or continue with</span>
+                            </div>
+                        </div>
+
+                        <GoogleAuthButton onCredential={signInWithGoogle} disabled={isLoading} />
 
 
                         <p className='text-center text-slate-400 text-sm mt-8'>

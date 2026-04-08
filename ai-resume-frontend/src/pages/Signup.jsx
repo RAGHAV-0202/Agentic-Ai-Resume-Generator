@@ -2,8 +2,9 @@
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Silk from '../components/ui/silk';
-import { signupAPI } from '../services/auth.api';
+import { googleLoginAPI, signupAPI } from '../services/auth.api';
 import Button from '../components/ui/Button';
+import GoogleAuthButton from '../components/GoogleAuthButton';
 
 function Signup() {
     const navigate = useNavigate();
@@ -41,6 +42,20 @@ function Signup() {
         } catch (err) {
             console.log("error while signing up", err);
             // In a real app, we'd show a proper error message here
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const signUpWithGoogle = async (idToken) => {
+        try {
+            setIsLoading(true);
+            const response = await googleLoginAPI({ idToken });
+            if (response.data.statusCode === 200) {
+                navigate("/dashboard");
+            }
+        } catch (err) {
+            console.log("error while signing up with google", err);
         } finally {
             setIsLoading(false);
         }
@@ -173,6 +188,17 @@ function Signup() {
                         >
                             Create Account
                         </Button>
+
+                        <div className="relative my-1">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-white/10" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-slate-900/50 px-2 text-slate-400">or continue with</span>
+                            </div>
+                        </div>
+
+                        <GoogleAuthButton onCredential={signUpWithGoogle} disabled={isLoading} />
 
 
 

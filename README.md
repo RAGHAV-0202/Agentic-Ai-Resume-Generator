@@ -82,6 +82,9 @@ An advanced, AI-powered resume builder that treats your resume as a coding proje
 
     # Client
     CORS_ORIGIN=http://localhost:5173
+
+    # Google Auth
+    GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
     ```
 
     Start the server:
@@ -94,6 +97,11 @@ An advanced, AI-powered resume builder that treats your resume as a coding proje
     cd ../ai-resume-frontend
     npm install
     ```
+    Create a `.env` file in `ai-resume-frontend`:
+    ```env
+    VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
+    ```
+
     Start the vite server:
     ```bash
     npm run dev

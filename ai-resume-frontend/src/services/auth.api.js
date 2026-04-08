@@ -15,6 +15,13 @@ export const loginAPI = async(data) => {
     return response
 }
 
+export const googleLoginAPI = async(data) => {
+    const response = await api.post("/api/auth/google", data)
+    const at = response.data.data.accessToken
+    localStorage.setItem('accessToken', at)
+    return response
+}
+
 export const logoutAPI = () => {
     localStorage.removeItem('accessToken')
     return api.post("/api/auth/logout")
