@@ -34,6 +34,48 @@ const escapeLatex = (text) => {
   return escaped;
 };
 
+const hasMeaningfulText = (value) => {
+  if (value === null || value === undefined) return false;
+  const normalized = value.toString().trim();
+  return normalized !== "" && normalized !== "_skipped" && normalized !== "__SKIPPED__";
+};
+
+const sanitizeStringArray = (arr = []) => {
+  return arr.filter((item) => hasMeaningfulText(item));
+};
+
+const hasMeaningfulEducation = (edu = {}) => {
+  return (
+    hasMeaningfulText(edu.institution) ||
+    hasMeaningfulText(edu.degree) ||
+    hasMeaningfulText(edu.startDate) ||
+    hasMeaningfulText(edu.endDate) ||
+    hasMeaningfulText(edu.gpa) ||
+    sanitizeStringArray(edu.coursework).length > 0
+  );
+};
+
+const hasMeaningfulExperience = (exp = {}) => {
+  return (
+    hasMeaningfulText(exp.company) ||
+    hasMeaningfulText(exp.position) ||
+    hasMeaningfulText(exp.location) ||
+    hasMeaningfulText(exp.startDate) ||
+    hasMeaningfulText(exp.endDate) ||
+    sanitizeStringArray(exp.highlights).length > 0
+  );
+};
+
+const hasMeaningfulProject = (project = {}) => {
+  return (
+    hasMeaningfulText(project.name) ||
+    hasMeaningfulText(project.date) ||
+    hasMeaningfulText(project.link) ||
+    sanitizeStringArray(project.highlights).length > 0 ||
+    sanitizeStringArray(project.technologies).length > 0
+  );
+};
+
 /**
  * Replace simple placeholders like {{PERSONAL.NAME}}
  */
@@ -127,7 +169,8 @@ const handleConditionals = (latex, data) => {
   }
 
   // Education section conditional
-  if (data.education && data.education.length > 0) {
+  const educationEntries = (data.education || []).filter(hasMeaningfulEducation);
+  if (educationEntries.length > 0) {
     result = result.replace(/{{#IF_EDUCATION}}/g, "");
     result = result.replace(/{{\/IF_EDUCATION}}/g, "");
   } else {
@@ -135,7 +178,8 @@ const handleConditionals = (latex, data) => {
   }
 
   // Experience section conditional
-  if (data.experience && data.experience.length > 0) {
+  const experienceEntries = (data.experience || []).filter(hasMeaningfulExperience);
+  if (experienceEntries.length > 0) {
     result = result.replace(/{{#IF_EXPERIENCE}}/g, "");
     result = result.replace(/{{\/IF_EXPERIENCE}}/g, "");
   } else {
@@ -143,7 +187,8 @@ const handleConditionals = (latex, data) => {
   }
 
   // Projects section conditional
-  if (data.projects && data.projects.length > 0) {
+  const projectEntries = (data.projects || []).filter(hasMeaningfulProject);
+  if (projectEntries.length > 0) {
     result = result.replace(/{{#IF_PROJECTS}}/g, "");
     result = result.replace(/{{\/IF_PROJECTS}}/g, "");
   } else {
@@ -175,15 +220,16 @@ const handleConditionals = (latex, data) => {
 const populateEducation = (latex, educationArray) => {
   const blockRegex = /{{#EDUCATION}}([\s\S]*?){{\/EDUCATION}}/;
   const match = latex.match(blockRegex);
+  const validEducation = (educationArray || []).filter(hasMeaningfulEducation);
 
-  if (!match || !educationArray || educationArray.length === 0) {
+  if (!match || validEducation.length === 0) {
     return latex.replace(blockRegex, "");
   }
 
   const blockTemplate = match[1];
   let educationLatex = "";
 
-  educationArray.forEach((edu) => {
+  validEducation.forEach((edu) => {
     let block = blockTemplate;
 
     block = block.replace(/{{INSTITUTION}}/g, escapeLatex(edu.institution || ""));
@@ -201,7 +247,7 @@ const populateEducation = (latex, educationArray) => {
     }
 
     // Handle coursework conditional
-    const courseworkFiltered = (edu.coursework || []).filter(c => c && c !== "_skipped");
+    const courseworkFiltered = sanitizeStringArray(edu.coursework || []);
     if (courseworkFiltered.length > 0) {
       block = block.replace(/{{#IF_COURSEWORK}}/g, "");
       block = block.replace(/{{\/IF_COURSEWORK}}/g, "");
@@ -240,15 +286,16 @@ const populateAchievements = (latex, achievementsArray) => {
 const populateExperience = (latex, experienceArray) => {
   const blockRegex = /{{#EXPERIENCE}}([\s\S]*?){{\/EXPERIENCE}}/;
   const match = latex.match(blockRegex);
+  const validExperience = (experienceArray || []).filter(hasMeaningfulExperience);
 
-  if (!match || !experienceArray || experienceArray.length === 0) {
+  if (!match || validExperience.length === 0) {
     return latex.replace(blockRegex, "");
   }
 
   const blockTemplate = match[1];
   let experienceLatex = "";
 
-  experienceArray.forEach((exp) => {
+  validExperience.forEach((exp) => {
     let block = blockTemplate;
 
     block = block.replace(/{{COMPANY}}/g, escapeLatex(exp.company || ""));
@@ -261,9 +308,10 @@ const populateExperience = (latex, experienceArray) => {
     const highlightsRegex = /{{#HIGHLIGHTS}}([\s\S]*?){{\/HIGHLIGHTS}}/;
     const highlightsMatch = block.match(highlightsRegex);
 
-    if (highlightsMatch && exp.highlights && exp.highlights.length > 0) {
+    const validHighlights = sanitizeStringArray(exp.highlights || []);
+    if (highlightsMatch && validHighlights.length > 0) {
       let highlightsLatex = "";
-      exp.highlights.forEach((highlight) => {
+      validHighlights.forEach((highlight) => {
         highlightsLatex += `                \\item ${escapeLatex(highlight)}\n`;
       });
       block = block.replace(highlightsRegex, highlightsLatex);
@@ -281,15 +329,16 @@ const populateExperience = (latex, experienceArray) => {
 const populateProjects = (latex, projectsArray) => {
   const blockRegex = /{{#PROJECTS}}([\s\S]*?){{\/PROJECTS}}/;
   const match = latex.match(blockRegex);
+  const validProjects = (projectsArray || []).filter(hasMeaningfulProject);
 
-  if (!match || !projectsArray || projectsArray.length === 0) {
+  if (!match || validProjects.length === 0) {
     return latex.replace(blockRegex, "");
   }
 
   const blockTemplate = match[1];
   let projectsLatex = "";
 
-  projectsArray.forEach((project) => {
+  validProjects.forEach((project) => {
     let block = blockTemplate;
 
     block = block.replace(/{{NAME}}/g, escapeLatex(project.name || ""));
@@ -308,9 +357,10 @@ const populateProjects = (latex, projectsArray) => {
     const highlightsRegex = /{{#HIGHLIGHTS}}([\s\S]*?){{\/HIGHLIGHTS}}/;
     const highlightsMatch = block.match(highlightsRegex);
 
-    if (highlightsMatch && project.highlights && project.highlights.length > 0) {
+    const validHighlights = sanitizeStringArray(project.highlights || []);
+    if (highlightsMatch && validHighlights.length > 0) {
       let highlightsLatex = "";
-      project.highlights.filter(h => h && h !== "_skipped").forEach((highlight) => {
+      validHighlights.forEach((highlight) => {
         highlightsLatex += `                \\item ${escapeLatex(highlight)}\n`;
       });
       block = block.replace(highlightsRegex, highlightsLatex);
@@ -319,7 +369,7 @@ const populateProjects = (latex, projectsArray) => {
     }
 
     // Handle technologies conditional
-    const techFiltered = (project.technologies || []).filter(t => t && t !== "_skipped");
+    const techFiltered = sanitizeStringArray(project.technologies || []);
     if (techFiltered.length > 0) {
       block = block.replace(/{{#IF_TECHNOLOGIES}}/g, "");
       block = block.replace(/{{\/IF_TECHNOLOGIES}}/g, "");
