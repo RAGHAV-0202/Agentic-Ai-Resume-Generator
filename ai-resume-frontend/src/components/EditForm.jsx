@@ -442,12 +442,12 @@ const EditForm = ({ resumeData, onSave, saving }) => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 dark:bg-slate-900">
+            <div className="flex-1 overflow-y-auto p-4 pb-24 dark:bg-slate-900">
                 {renderSection()}
             </div>
 
             {/* Save */}
-            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+            <div className="sticky bottom-0 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
                 <button
                     onClick={handleSave}
                     disabled={saving}

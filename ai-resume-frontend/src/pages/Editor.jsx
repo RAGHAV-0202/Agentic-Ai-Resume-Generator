@@ -350,14 +350,14 @@ const Editor = () => {
 
     if (loading) {
         return (
-            <div className="h-screen flex items-center justify-center bg-slate-50">
+            <div className="h-dvh flex items-center justify-center bg-slate-50">
                 <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col h-screen bg-slate-100 overflow-hidden font-sans">
+        <div className="flex flex-col h-dvh bg-slate-100 overflow-hidden font-sans">
             {/* Top Bar */}
             <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shrink-0">
                 <div className="flex items-center gap-4">
