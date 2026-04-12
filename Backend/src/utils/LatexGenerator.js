@@ -293,9 +293,8 @@ const populateAchievements = (latex, achievementsArray) => {
   let achievementsLatex = "";
 
   achievementsArray.forEach((item) => {
-    // Replace {{{.}}} with the actual text
-    // The user's template uses {{{.}}} which corresponds to the current item in the array
-    let entry = blockTemplate.replace(/{{{\.}}}/g, escapeLatex(item));
+    // Replace {{.}} or {{{.}}} with the actual text
+    let entry = blockTemplate.replace(/{{3}\.}{3}|{{2}\.}{2}/g, escapeLatex(item));
     achievementsLatex += entry;
   });
 

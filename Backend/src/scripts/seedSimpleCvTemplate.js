@@ -133,7 +133,7 @@ const TEMPLATE = {
 \\begin{document}
 
 % Heading
-\\headinginline{{{PERSONAL.NAME}}}{
+\\headinginline{ {{PERSONAL.NAME}} }{
     {{#IF_WEBSITE}}Website: \\website{ {{PERSONAL.WEBSITE}} } \\\\ {{/IF_WEBSITE}}
     {{#IF_EMAIL}}Email: \\email{ {{PERSONAL.EMAIL}} } \\\\ {{/IF_EMAIL}}
     {{#IF_LINKEDIN}}LinkedIn: \\linkedin{ {{PERSONAL.LINKEDIN}} } \\\\ {{/IF_LINKEDIN}}
@@ -146,8 +146,8 @@ const TEMPLATE = {
 \\outerlist{
   {{#EDUCATION}}
     \\entrybig
-    {\\textbf{ {{{INSTITUTION}}} }} { {{START_DATE}} -- {{END_DATE}} }
-    { {{{DEGREE}}} } { {{#IF_GPA}}GPA: {{GPA}}{{/IF_GPA}} }
+    {\\textbf{ {{INSTITUTION}} }} { {{START_DATE}} -- {{END_DATE}} }
+    { {{DEGREE}} } { {{#IF_GPA}}GPA: {{GPA}}{{/IF_GPA}} }
     {{#IF_COURSEWORK}}
     \\innerlist{
         \\entry{\\textit{Coursework:} {{COURSEWORK}} }
@@ -162,8 +162,8 @@ const TEMPLATE = {
 \\outerlist{
   {{#EXPERIENCE}}
     \\entrybig
-    {\\textbf{ {{{COMPANY}}} }} { {{START_DATE}} -- {{END_DATE}} }
-    { {{{POSITION}}}, {{{LOCATION}}} } {}
+    {\\textbf{ {{COMPANY}} }} { {{START_DATE}} -- {{END_DATE}} }
+    { {{POSITION}}, {{LOCATION}} } {}
     \\innerlist{
       {{#HIGHLIGHTS}}
       {{/HIGHLIGHTS}}
@@ -177,8 +177,8 @@ const TEMPLATE = {
 \\outerlist{
   {{#PROJECTS}}
     \\entrybig
-    {\\textbf{ {{{NAME}}} } {{#IF_LINK}} (\\link{https://{{LINK}}}{Link}) {{/IF_LINK}} } { {{DATE}} }
-    { \\textit{ {{{TECHNOLOGIES}}} } } {}
+    {\\textbf{ {{NAME}} } {{#IF_LINK}} (\\link{https://{{LINK}}}{Link}) {{/IF_LINK}} } { {{DATE}} }
+    { {{#IF_TECHNOLOGIES}} \\textit{ {{TECHNOLOGIES}} } {{/IF_TECHNOLOGIES}} } {}
     \\innerlist{
       {{#HIGHLIGHTS}}
       {{/HIGHLIGHTS}}
@@ -204,7 +204,7 @@ const TEMPLATE = {
     \\section{Achievements}
     \\denseouterlist{
         {{#ACHIEVEMENTS}}
-        \\entry{ {{{.}}} }
+        \\entry{ {{.}} }
         {{/ACHIEVEMENTS}}
     }
     {{/IF_ACHIEVEMENTS}}
@@ -214,7 +214,7 @@ const TEMPLATE = {
 \\section{Publications}
 \\outerlist{
   {{#PUBLICATIONS}}
-    \\entrymid{ {{{TITLE}}} }{ {{DATE}} }{\\textbf{ {{{AUTHORS}}} } {{#IF_DOI}} -- \\link{https://doi.org/{{DOI}}}{DOI} {{/IF_DOI}}}
+    \\entrymid{ {{TITLE}} }{ {{DATE}} }{\\textbf{ {{AUTHORS}} } {{#IF_DOI}} -- \\link{https://doi.org/{{DOI}}}{DOI} {{/IF_DOI}}}
   {{/PUBLICATIONS}}
 }
 {{/IF_PUBLICATIONS}}
