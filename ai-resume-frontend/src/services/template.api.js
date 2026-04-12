@@ -6,5 +6,5 @@ export const getAllTemplates = ()=>{
 }
 
 export const getTemplateById = (id) => {
-    return api.get(`/api/templates/${id}`)
+    return api.get(`/api/template/${id}`)
 }

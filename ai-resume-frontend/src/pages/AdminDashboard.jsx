@@ -11,7 +11,7 @@ import {
     deleteTemplateAPI,
     getAdminAnalyticsAPI
 } from "../services/admin.api";
-import { getAllTemplates } from "../services/template.api";
+import { getAllTemplates, getTemplateById } from "../services/template.api";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Users, FileText, Upload, Trash2, LogOut, Shield, Search, Plus, X, Laptop, BarChart3, Zap, Target, MessageSquare, Activity } from "lucide-react";
 import { baseURL } from "../services/http";
@@ -142,18 +142,38 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleEditTemplateClick = (template) => {
-        setEditingTemplateId(template._id);
-        setNewTemplate({
-            name: template.name || "",
-            slug: template.slug || "",
-            description: template.description || "",
-            latexTemplate: template.latexTemplate || "",
-            requiredFields: template.requiredFields || "",
-            optionalFields: template.optionalFields || "",
-        });
-        setThumbnailFile(null); // Keep old image if a new one is not selected
-        setShowUploadModal(true);
+    const handleEditTemplateClick = async (template) => {
+        try {
+            // Options: We can optimistically set the UI with available simple data while fetching
+            setEditingTemplateId(template._id);
+            setNewTemplate({
+                name: template.name || "",
+                slug: template.slug || "",
+                description: template.description || "",
+                latexTemplate: "Loading...", 
+                requiredFields: template.requiredFields || "",
+                optionalFields: template.optionalFields || "",
+            });
+            setThumbnailFile(null);
+            setShowUploadModal(true);
+
+            // Fetch the full template detail from server to get `latexTemplate`
+            const res = await getTemplateById(template._id);
+            if (res.data?.data?.template) {
+                const fullTemplate = res.data.data.template;
+                setNewTemplate({
+                    name: fullTemplate.name || "",
+                    slug: fullTemplate.slug || "",
+                    description: fullTemplate.description || "",
+                    latexTemplate: fullTemplate.latexTemplate || "",
+                    requiredFields: fullTemplate.requiredFields || "",
+                    optionalFields: fullTemplate.optionalFields || "",
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch template detail:", error);
+            alert("Failed to load full template details.");
+        }
     };
 
     const handleDeleteTemplate = async (id) => {
