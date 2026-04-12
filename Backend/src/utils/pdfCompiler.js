@@ -36,6 +36,13 @@ export const compilePDFLocal = async (latexString, resumeId) => {
     fs.mkdirSync(tempDir, { recursive: true });
   }
 
+  // SHARED ASSETS SYSTEM:
+  // Copy global packages (like altacv.cls) into the local compilation directory before compiling
+  const assetsDir = path.join(__dirname, "../assets/latex");
+  if (fs.existsSync(assetsDir)) {
+    fs.cpSync(assetsDir, tempDir, { recursive: true });
+  }
+
   const texPath = path.join(tempDir, "resume.tex");
   fs.writeFileSync(texPath, latexString, "utf-8");
 
