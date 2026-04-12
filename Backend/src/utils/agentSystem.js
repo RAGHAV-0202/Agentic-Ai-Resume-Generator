@@ -60,8 +60,6 @@ const getModelOrder = (apiKey) => {
     const cooldownUntil = modelState.cooldowns[cacheKey] || 0;
     if (now >= cooldownUntil) {
       ordered.push(model);
-    } else {
-      console.log(`⏳ ${model} on cooldown for this key (${Math.ceil((cooldownUntil - now) / 1000)}s left)`);
     }
   }
 
@@ -477,7 +475,6 @@ class AgenticResumeAgent {
         (modelState.cooldowns[`${m}:${this.apiKey}`] || 0) < (modelState.cooldowns[`${best}:${this.apiKey}`] || 0) ? m : best
       );
       const waitMs = Math.max(0, (modelState.cooldowns[`${soonest}:${this.apiKey}`] || 0) - Date.now());
-      console.log(`⏳ All models on cooldown for this key. Waiting ${Math.ceil(waitMs / 1000)}s for ${soonest}...`);
       await new Promise(r => setTimeout(r, waitMs + 500));
       modelsToTry.push(soonest);
     }
@@ -496,7 +493,6 @@ class AgenticResumeAgent {
           payload.tool_choice = toolChoice;
         }
 
-        console.log(`🤖 Trying model: ${model}`);
         const response = await fetch(this.API_URL, {
           method: "POST",
           headers: {
@@ -508,7 +504,6 @@ class AgenticResumeAgent {
 
         if (response.status === 429) {
           modelState.cooldowns[`${model}:${this.apiKey}`] = Date.now() + 60_000;
-          console.warn(`⚠️ Rate limited on ${model}, cooling down 60s. Trying next...`);
           lastError = new Error(`Rate limited on ${model}`);
           continue;
         }
@@ -516,7 +511,6 @@ class AgenticResumeAgent {
         if (!response.ok) {
           const errBody = await response.text();
           if (response.status === 400 && errBody.includes("tool")) {
-            console.warn(`⚠️ ${model} doesn't support tool calling, trying next...`);
             lastError = new Error(`${model} tool support error`);
             continue;
           }
@@ -528,11 +522,9 @@ class AgenticResumeAgent {
         // Success! Remember this model as preferred
         const successIdx = GROQ_MODELS.indexOf(model);
         if (successIdx >= 0) modelState.preferredIndex = successIdx;
-        console.log(`✅ Success with ${model}`);
 
         return data.choices[0].message;
       } catch (error) {
-        console.error(`❌ ${model} failed:`, error.message);
         lastError = error;
       }
     }
@@ -715,7 +707,6 @@ class AgenticResumeAgent {
     // Handle "yes" to add-more prompts programmatically
     const yesPatterns = /^(yes|yeah|yep|sure|ok|okay|y|yea|absolutely|of course|add more|yes please)$/i;
     if (yesPatterns.test(trimmedMsg) && currentFocus.askAddMore) {
-      console.log(`🔀 Yes to addMore: creating new ${currentFocus.section} entry`);
       // Create a new empty entry and ask for the first field
       if (!resumeData[currentFocus.section]) resumeData[currentFocus.section] = [];
       resumeData[currentFocus.section].push({});
@@ -735,14 +726,12 @@ class AgenticResumeAgent {
     }
 
     if (skipPatterns.test(trimmedMsg)) {
-      console.log(`🔀 Skip detected: "${trimmedMsg}" | currentSection: ${currentSection} | focus: ${currentFocus.section}.${currentFocus.field} | askAddMore: ${currentFocus.askAddMore}`);
 
       // Always handle "add more?" programmatically — it's a yes/no question
       if (currentFocus.askAddMore) {
         const nextSectionIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
         const nextSec = nextSectionIdx < SECTION_ORDER.length ? SECTION_ORDER[nextSectionIdx] : "complete";
         const nextFocus = computeCurrentFocus(resumeData, nextSec);
-        console.log(`  → addMore=no, advancing to: ${nextFocus.section}.${nextFocus.field}`);
 
         return {
           updatedData: resumeData,
@@ -783,7 +772,6 @@ class AgenticResumeAgent {
           const nextSectionIdx = SECTION_ORDER.indexOf(currentFocus.section) + 1;
           const nextSec = nextSectionIdx < SECTION_ORDER.length ? SECTION_ORDER[nextSectionIdx] : "complete";
           const nextFocus = computeCurrentFocus(resumeData, nextSec);
-          console.log(`  → section-level skip (empty ${currentFocus.section}), advancing to: ${nextFocus.section}.${nextFocus.field}`);
 
           return {
             updatedData: resumeData,
@@ -800,7 +788,6 @@ class AgenticResumeAgent {
           };
         }
 
-        console.log(`  → field "${currentFocus.field}" is required — sending to LLM`);
         // Fall through to the LLM call below (don't return early)
       } else {
         // For OPTIONAL field skips — mark as skipped in data and advance
@@ -819,7 +806,6 @@ class AgenticResumeAgent {
         }
 
         const nextFocus = this._computeNextFieldAfterSkip(resumeData, currentFocus, currentSection);
-        console.log(`  → optional field skip, next: ${nextFocus.section}.${nextFocus.field} | askAddMore: ${nextFocus.askAddMore}`);
 
         // If the next focus is "add more?" for the SAME section, ask about it properly
         if (nextFocus.askAddMore) {

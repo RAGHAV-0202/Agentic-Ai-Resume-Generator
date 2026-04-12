@@ -85,15 +85,12 @@ export const compilePDFLocal = async (latexString, resumeId) => {
       throw new Error(detailedMessage);
     }
 
-    console.log("✅ PDF generated successfully!");
     const pdfBuffer = fs.readFileSync(pdfPath);
 
     // Verify PDF has reasonable size
     if (pdfBuffer.length < 1000) {
       throw new Error("Generated PDF is too small, likely corrupt");
     }
-
-    console.log(`📄 PDF size: ${pdfBuffer.length} bytes`);
 
     // Clean up auxiliary files
     const filesToDelete = ["resume.aux", "resume.log", "resume.out"];

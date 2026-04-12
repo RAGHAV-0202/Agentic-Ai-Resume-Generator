@@ -118,8 +118,6 @@ export const recompilePDF = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Template not found");
   }
 
-  console.log("🔄 Recompiling PDF with updated data...");
-
   // Generate LaTeX with CURRENT data (not mock)
   const latexString = generateLatex(template.latexTemplate, resume.data);
   resume.generatedLatex = latexString;
@@ -133,8 +131,6 @@ export const recompilePDF = asyncHandler(async (req, res) => {
   resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
   resume.updatedAt = new Date(); // Force update timestamp
   await resume.save();
-
-  console.log("✅ PDF recompiled successfully!");
 
   res.status(200).json(
     new ApiResponse(
