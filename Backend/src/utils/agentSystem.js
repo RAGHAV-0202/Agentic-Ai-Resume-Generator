@@ -1,4 +1,4 @@
-/**
+s/**
  * ═══════════════════════════════════════════════════════════════════
  * TRUE AGENTIC RESUME SYSTEM — LLM Tool-Use Architecture
  * ═══════════════════════════════════════════════════════════════════
@@ -947,9 +947,17 @@ class AgenticResumeAgent {
       // nextSection/nextField — the recompute above already set those correctly.
       if (wasUpdate && !nextQuestion) {
         try {
+          // Sanitize the response message to remove unsupported fields like 'reasoning'
+          // which cause invalid_request_error on fallback models that don't support it 
+          const sanitizedResponse = {
+            role: response.role,
+            content: response.content || "",
+          };
+          if (response.tool_calls) sanitizedResponse.tool_calls = response.tool_calls;
+
           const followUpMessages = [
             ...messages,
-            response, // assistant message with tool_calls
+            sanitizedResponse,
             ...toolResults,
           ];
 
