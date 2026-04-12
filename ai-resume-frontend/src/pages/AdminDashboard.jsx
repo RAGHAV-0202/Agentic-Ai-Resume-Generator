@@ -7,6 +7,7 @@ import {
     generateResumePdfForAdminAPI,
     getAdminProfileAPI,
     uploadTemplateAPI,
+    updateTemplateAPI,
     adminLogoutAPI,
     deleteTemplateAPI,
     getAdminAnalyticsAPI
