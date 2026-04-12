@@ -30,7 +30,7 @@ const getLatexErrorSnippet = (logContent = "") => {
 // src/utils/pdfCompiler.js
 
 export const compilePDFLocal = async (latexString, resumeId) => {
-  const tempDir = path.join(__dirname, "../../temp", resumeId);
+  const tempDir = path.join(__dirname, "../../temp", String(resumeId));
   
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
