@@ -7,6 +7,9 @@ import User from "../models/User.model.js";
 import Resume from "../models/Resume.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
+import Template from "../models/Template.model.js";
+import { generateLatex } from "../utils/LatexGenerator.js";
+import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
 
 
 const generateAccessToken = async (userId) => {
@@ -130,6 +133,39 @@ const AdminGetResumeById = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, resume, "Resume fetched"));
 })
 
+const AdminGenerateResumePdf = asyncHandler(async (req, res) => {
+    const { resumeId } = req.params;
+
+    const resume = await Resume.findById(resumeId).populate("templateId", "name slug latexTemplate");
+
+    if (!resume) {
+        throw new ApiError(404, "Resume not found");
+    }
+
+    if (!resume.templateId) {
+        throw new ApiError(400, "Please select a template first");
+    }
+
+    const template = await Template.findById(resume.templateId._id || resume.templateId);
+
+    if (!template) {
+        throw new ApiError(404, "Template not found");
+    }
+
+    const latexString = generateLatex(template.latexTemplate, resume.data);
+    resume.generatedLatex = latexString;
+
+    const pdfBuffer = await compilePDF(latexString, resumeId);
+    savePDF(pdfBuffer, resumeId);
+
+    resume.pdfUrl = `/pdfs/${resumeId}.pdf`;
+    await resume.save();
+
+    res.status(200).json(
+        new ApiResponse(200, { pdfUrl: resume.pdfUrl }, "Resume PDF generated")
+    );
+})
+
 
 
 
@@ -140,5 +176,6 @@ export {
     AdminIsLoggedIn,
     AdminGetAllUsers,
     AdminGetAllResumes,
-    AdminGetResumeById
+    AdminGetResumeById,
+    AdminGenerateResumePdf
 }

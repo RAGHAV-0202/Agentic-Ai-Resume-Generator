@@ -4,6 +4,7 @@ import {
     getAllUsersAPI,
     getAllResumesAPI,
     getResumeByIdForAdminAPI,
+    generateResumePdfForAdminAPI,
     getAdminProfileAPI,
     uploadTemplateAPI,
     adminLogoutAPI,
@@ -161,8 +162,16 @@ const AdminDashboard = () => {
         setShowResumeModal(true);
         try {
             const res = await getResumeByIdForAdminAPI(resumeId);
-            if (res.data?.data) {
-                setSelectedResume(res.data.data);
+            const resume = res.data?.data;
+
+            if (resume) {
+                if (!resume.pdfUrl) {
+                    await generateResumePdfForAdminAPI(resumeId);
+                    const refreshed = await getResumeByIdForAdminAPI(resumeId);
+                    setSelectedResume(refreshed.data?.data || resume);
+                } else {
+                    setSelectedResume(resume);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch resume details:", error);

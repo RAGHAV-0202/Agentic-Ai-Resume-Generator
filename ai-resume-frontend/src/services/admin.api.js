@@ -31,6 +31,10 @@ export const getResumeByIdForAdminAPI = (resumeId) => {
     return api.get(`/api/admin/resumes/${resumeId}`);
 };
 
+export const generateResumePdfForAdminAPI = (resumeId) => {
+    return api.post(`/api/admin/resumes/${resumeId}/pdf`);
+};
+
 export const uploadTemplateAPI = (formData) => {
     // formData should contain 'thumbnail' and other fields
     return api.post("/api/template", formData, {
