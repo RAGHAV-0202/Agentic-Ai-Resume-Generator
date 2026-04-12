@@ -21,6 +21,7 @@ import { generateLatex } from "../utils/LatexGenerator.js";
 import { compilePDF, savePDF } from "../utils/pdfCompiler.js";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import { getGroqApiKey } from "../utils/apiKeyManager.js";
 
 dotenv.config();
 
@@ -124,7 +125,7 @@ export const startAgenticConversation = asyncHandler(async (req, res) => {
   resume.data = emptyData;
 
   // Initialize agent and get opening message
-  const agent = createAgent(process.env.GROQ_API_KEY);
+  const agent = createAgent(getGroqApiKey());
   const result = agent.startConversation();
 
   // Save AI message
@@ -173,7 +174,7 @@ export const sendAgenticMessage = asyncHandler(async (req, res) => {
   await resume.addMessage("user", message);
 
   // Initialize agent
-  const agent = createAgent(process.env.GROQ_API_KEY);
+  const agent = createAgent(getGroqApiKey());
 
   // Get current data as plain object
   const currentData = toPlainObject(resume.data);
@@ -282,7 +283,7 @@ export const updateResumeData = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Resume not found or unauthorized");
   }
 
-  const agent = createAgent(process.env.GROQ_API_KEY);
+  const agent = createAgent(getGroqApiKey());
   const currentData = toPlainObject(resume.data);
 
   const result = await agent.processMessage(
@@ -365,7 +366,7 @@ export const getConversationStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Resume not found or unauthorized");
   }
 
-  const agent = createAgent(process.env.GROQ_API_KEY);
+  const agent = createAgent(getGroqApiKey());
   const currentData = toPlainObject(resume.data);
   const missingFields = agent.analyzeMissingFields(currentData);
 

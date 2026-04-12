@@ -499,6 +499,7 @@ export default {
 // ====================================================================
 
 import dotenv from "dotenv";
+import { getGroqApiKey } from "./apiKeyManager.js";
 dotenv.config();
 
 const getSystemPrompt = (currentSection, currentField, collectedData) => {
@@ -518,7 +519,7 @@ export const extractDataFromMessage = async (userMessage, expectedField, current
   const messages = [{ role: "user", content: prompt }];
 
   try {
-    const result = await callGroqAPI(messages, process.env.GROQ_API_KEY);
+    const result = await callGroqAPI(messages, getGroqApiKey());
     if (!result || isSkipRequest(result)) return "SKIP";
     return result.replace(/^(the |a |an |my |i am |i'm |it is |it's |this is )/i, '').trim();
   } catch (e) {
@@ -543,7 +544,7 @@ export const getAIResponse = async (userMessage, conversationState, collectedDat
   ];
 
   try {
-    const response = await callGroqAPI(messages, process.env.GROQ_API_KEY);
+    const response = await callGroqAPI(messages, getGroqApiKey());
     return response || getNextQuestion(currentSection, currentField);
   } catch (e) {
     return getNextQuestion(currentSection, currentField);

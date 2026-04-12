@@ -11,6 +11,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { analyzeATSMatch } from "../utils/atsAnalyzer.js";
 import { checkGrammarAndTone } from "../utils/grammarChecker.js";
 import { trackEvent } from "../middlewares/analytics.middleware.js";
+import { getGroqApiKey } from "../utils/apiKeyManager.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -36,7 +37,7 @@ export const atsAnalyze = asyncHandler(async (req, res) => {
     const analysis = await analyzeATSMatch(
         resumeData,
         jobDescription.trim(),
-        process.env.GROQ_API_KEY
+        getGroqApiKey()
     );
 
     trackEvent(userId, "ats_analyze", { metadata: { matchScore: analysis.matchScore } });
@@ -66,7 +67,7 @@ export const grammarCheck = asyncHandler(async (req, res) => {
 
     const analysis = await checkGrammarAndTone(
         resumeData,
-        process.env.GROQ_API_KEY
+        getGroqApiKey()
     );
 
     trackEvent(userId, "grammar_check", { metadata: { overallScore: analysis.overallScore } });

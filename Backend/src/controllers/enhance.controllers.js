@@ -12,11 +12,10 @@ import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { trackEvent } from "../middlewares/analytics.middleware.js";
+import { getGroqApiKey } from "../utils/apiKeyManager.js";
 import dotenv from "dotenv";
 
 dotenv.config();
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export const enhanceBullet = asyncHandler(async (req, res) => {
     const { text, context } = req.body;
@@ -39,6 +38,7 @@ Rules:
 ${context ? `Context: The person works as ${context}` : ""}`;
 
     try {
+        const groq = new Groq({ apiKey: getGroqApiKey() });
         const completion = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
             messages: [
