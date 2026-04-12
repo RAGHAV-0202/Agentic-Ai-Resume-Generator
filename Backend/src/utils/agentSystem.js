@@ -42,11 +42,12 @@ const modelState = {
  * Get models to try, starting from the preferred (last successful) one.
  * Skips models still on cooldown. Returns to primary once its cooldown expires.
  */
-const getModelOrder = () => {
+const getModelOrder = (apiKey) => {
   const now = Date.now();
+  const primaryKey = `${GROQ_MODELS[0]}:${apiKey}`;
 
   // If primary model's cooldown expired, reset to it
-  if (!modelState.cooldowns[GROQ_MODELS[0]] || now >= modelState.cooldowns[GROQ_MODELS[0]]) {
+  if (!modelState.cooldowns[primaryKey] || now >= modelState.cooldowns[primaryKey]) {
     modelState.preferredIndex = 0;
   }
 
@@ -55,11 +56,12 @@ const getModelOrder = () => {
   for (let i = 0; i < GROQ_MODELS.length; i++) {
     const idx = (modelState.preferredIndex + i) % GROQ_MODELS.length;
     const model = GROQ_MODELS[idx];
-    const cooldownUntil = modelState.cooldowns[model] || 0;
+    const cacheKey = `${model}:${apiKey}`;
+    const cooldownUntil = modelState.cooldowns[cacheKey] || 0;
     if (now >= cooldownUntil) {
       ordered.push(model);
     } else {
-      console.log(`⏳ ${model} on cooldown (${Math.ceil((cooldownUntil - now) / 1000)}s left)`);
+      console.log(`⏳ ${model} on cooldown for this key (${Math.ceil((cooldownUntil - now) / 1000)}s left)`);
     }
   }
 
@@ -466,16 +468,16 @@ class AgenticResumeAgent {
   // GROQ API CALL (with tool support)
   // ─────────────────────────────────────────────────────────────────
   async callGroq(messages, tools = null, toolChoice = "auto") {
-    const modelsToTry = getModelOrder();
+    const modelsToTry = getModelOrder(this.apiKey);
     let lastError;
 
     if (modelsToTry.length === 0) {
-      // All models on cooldown — wait for the shortest one
+      // All models on cooldown for this key — wait for the shortest one
       const soonest = GROQ_MODELS.reduce((best, m) =>
-        (modelState.cooldowns[m] || 0) < (modelState.cooldowns[best] || 0) ? m : best
+        (modelState.cooldowns[`${m}:${this.apiKey}`] || 0) < (modelState.cooldowns[`${best}:${this.apiKey}`] || 0) ? m : best
       );
-      const waitMs = Math.max(0, (modelState.cooldowns[soonest] || 0) - Date.now());
-      console.log(`⏳ All models on cooldown. Waiting ${Math.ceil(waitMs / 1000)}s for ${soonest}...`);
+      const waitMs = Math.max(0, (modelState.cooldowns[`${soonest}:${this.apiKey}`] || 0) - Date.now());
+      console.log(`⏳ All models on cooldown for this key. Waiting ${Math.ceil(waitMs / 1000)}s for ${soonest}...`);
       await new Promise(r => setTimeout(r, waitMs + 500));
       modelsToTry.push(soonest);
     }
@@ -505,7 +507,7 @@ class AgenticResumeAgent {
         });
 
         if (response.status === 429) {
-          modelState.cooldowns[model] = Date.now() + 60_000;
+          modelState.cooldowns[`${model}:${this.apiKey}`] = Date.now() + 60_000;
           console.warn(`⚠️ Rate limited on ${model}, cooling down 60s. Trying next...`);
           lastError = new Error(`Rate limited on ${model}`);
           continue;
