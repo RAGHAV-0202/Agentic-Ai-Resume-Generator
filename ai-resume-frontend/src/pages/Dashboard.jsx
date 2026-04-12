@@ -107,6 +107,14 @@ function Dashboard() {
         setResumes(prev => prev.filter(r => r._id !== deletedId));
     };
 
+    const handleRenameResume = (resumeId, resumeName) => {
+        setResumes(prev =>
+            prev.map((resume) =>
+                resume._id === resumeId ? { ...resume, resumeName } : resume
+            )
+        );
+    };
+
     // Build sparkline data from daily activity (last 30 days)
     const sparklineData = (() => {
         if (!analytics?.dailyActivity) return [];
@@ -238,6 +246,7 @@ function Dashboard() {
                                             key={resume._id}
                                             resume={resume}
                                             onDelete={handleDeleteResume}
+                                            onRename={handleRenameResume}
                                         />
                                     ))}
                                 </div>

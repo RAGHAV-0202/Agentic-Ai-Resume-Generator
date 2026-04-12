@@ -16,6 +16,10 @@ export const DeleteResume = (id) => {
     return api.delete(`/api/resume/${id}`)
 }
 
+export const RenameResume = (id, resumeName) => {
+    return api.put(`/api/resume/${id}/name`, { resumeName })
+}
+
 export const ChangeTemplate = ({ id, templateId }) => {
     return api.put(`/api/resume/${id}/template`, { templateId })
 }

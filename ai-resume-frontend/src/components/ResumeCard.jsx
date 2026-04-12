@@ -1,9 +1,9 @@
 import React from 'react';
-import { FileText, Calendar, Trash2, Edit } from 'lucide-react';
+import { FileText, Calendar, Trash2, Edit, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { DeleteResume } from '../services/resume.api';
+import { DeleteResume, RenameResume } from '../services/resume.api';
 
-const ResumeCard = ({ resume, onDelete }) => {
+const ResumeCard = ({ resume, onDelete, onRename }) => {
     const navigate = useNavigate();
 
     const handleEdit = () => {
@@ -24,6 +24,29 @@ const ResumeCard = ({ resume, onDelete }) => {
         } catch (error) {
             console.error('Delete failed:', error);
             alert('Failed to delete resume');
+        }
+    };
+
+    const handleRename = async (e) => {
+        e.stopPropagation();
+
+        const currentName = resume.resumeName || resume.data?.personal?.name || 'Untitled Resume';
+        const nextName = window.prompt('Enter new resume name', currentName);
+
+        if (nextName === null) return;
+
+        const trimmed = nextName.trim();
+        if (!trimmed || trimmed === currentName) return;
+
+        try {
+            const response = await RenameResume(resume._id, trimmed);
+            const updated = response?.data?.data?.resume;
+            if (updated && onRename) {
+                onRename(updated._id, updated.resumeName);
+            }
+        } catch (error) {
+            console.error('Rename failed:', error);
+            alert('Failed to rename resume');
         }
     };
 
@@ -99,6 +122,13 @@ const ResumeCard = ({ resume, onDelete }) => {
                             title="Edit Resume"
                         >
                             <Edit size={16} />
+                        </button>
+                        <button
+                            onClick={handleRename}
+                            className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-colors"
+                            title="Rename Resume"
+                        >
+                            <Pencil size={16} />
                         </button>
                         <button
                             onClick={handleDelete}
