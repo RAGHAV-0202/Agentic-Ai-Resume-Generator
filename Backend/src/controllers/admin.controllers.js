@@ -4,6 +4,7 @@ import ApiError from "../utils/ApiError.js";
 import dotenv from "dotenv"
 dotenv.config()
 import User from "../models/User.model.js";
+import Resume from "../models/Resume.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
 
@@ -24,7 +25,8 @@ const adminLogin = asyncHandler(async (req, res) => {
     if (!email || !password) {
         throw new ApiError(400, "enter email and passoword")
     }
-    const admin = await Admin.findOne({ email: email })
+    const normalizedEmail = email.toLowerCase().trim();
+    const admin = await Admin.findOne({ email: normalizedEmail })
 
     if (!admin) {
         throw new ApiError(400, "Invalid Login or Password , admin not found")
@@ -100,8 +102,18 @@ const AdminIsLoggedIn = asyncHandler(async (req, res) => {
 
 
 const AdminGetAllUsers = asyncHandler(async (req, res) => {
-    const users = await User.find().select("_id firstName lastName email phoneNumber orders isEmailVerified fullName")
+    const users = await User.find().select("_id name email createdAt updatedAt")
     res.status(200).json(new ApiResponse(200, users, "All users fetched"))
+})
+
+const AdminGetAllResumes = asyncHandler(async (req, res) => {
+    const resumes = await Resume.find({})
+        .populate("userId", "name email")
+        .populate("templateId", "name slug")
+        .sort({ updatedAt: -1 })
+        .select("_id resumeName userId templateId isPublic createdAt updatedAt pdfUrl");
+
+    res.status(200).json(new ApiResponse(200, resumes, "All resumes fetched"));
 })
 
 
@@ -112,5 +124,6 @@ export {
     adminLogin,
     adminLogout,
     AdminIsLoggedIn,
-    AdminGetAllUsers
+    AdminGetAllUsers,
+    AdminGetAllResumes
 }

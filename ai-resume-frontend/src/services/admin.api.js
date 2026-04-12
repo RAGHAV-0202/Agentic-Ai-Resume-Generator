@@ -23,6 +23,10 @@ export const getAllUsersAPI = () => {
     return api.get("/api/admin/users");
 };
 
+export const getAllResumesAPI = () => {
+    return api.get("/api/admin/resumes");
+};
+
 export const uploadTemplateAPI = (formData) => {
     // formData should contain 'thumbnail' and other fields
     return api.post("/api/template", formData, {

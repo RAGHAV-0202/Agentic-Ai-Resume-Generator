@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import {
     getAllUsersAPI,
+    getAllResumesAPI,
     uploadTemplateAPI,
     adminLogoutAPI,
     deleteTemplateAPI,
@@ -12,8 +13,9 @@ import { useNavigate } from "react-router-dom";
 import { Loader2, Users, FileText, Upload, Trash2, LogOut, Shield, Search, Plus, X, Laptop, BarChart3, Zap, Target, MessageSquare, Activity } from "lucide-react";
 
 const AdminDashboard = () => {
-    const [activeTab, setActiveTab] = useState("analytics"); // 'users' | 'templates' | 'analytics'
+    const [activeTab, setActiveTab] = useState("analytics"); // 'users' | 'resumes' | 'templates' | 'analytics'
     const [users, setUsers] = useState([]);
+    const [resumes, setResumes] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showUploadModal, setShowUploadModal] = useState(false);
@@ -42,6 +44,9 @@ const AdminDashboard = () => {
             if (activeTab === "users") {
                 const res = await getAllUsersAPI();
                 if (res.data?.data) setUsers(res.data.data);
+            } else if (activeTab === "resumes") {
+                const res = await getAllResumesAPI();
+                if (res.data?.data) setResumes(res.data.data);
             } else if (activeTab === "analytics") {
                 const res = await getAdminAnalyticsAPI();
                 if (res.data?.data) setAdminAnalytics(res.data.data);
@@ -161,6 +166,14 @@ const AdminDashboard = () => {
                         <Users size={20} />
                         <span className="font-medium">Users</span>
                     </button>
+                    <button
+                        onClick={() => setActiveTab("resumes")}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === "resumes" ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                            }`}
+                    >
+                        <Laptop size={20} />
+                        <span className="font-medium">Resumes</span>
+                    </button>
                 </nav>
 
                 <div className="p-4 border-t border-slate-800">
@@ -179,7 +192,7 @@ const AdminDashboard = () => {
                 <header className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">
-                            {activeTab === "users" ? "User Management" : activeTab === "analytics" ? "Platform Analytics" : "Template Library"}
+                            {activeTab === "users" ? "User Management" : activeTab === "resumes" ? "Resume Library" : activeTab === "analytics" ? "Platform Analytics" : "Template Library"}
                         </h1>
                         <p className="text-slate-500 text-sm mt-1">
                             {activeTab === "analytics" ? "Real-time platform usage metrics" : `Manage your application's ${activeTab}`}
@@ -339,6 +352,43 @@ const AdminDashboard = () => {
                                                 <td className="px-6 py-4 font-medium text-slate-900">{user.fullName || "N/A"}</td>
                                                 <td className="px-6 py-4">{user.email}</td>
                                                 <td className="px-6 py-4 font-mono text-xs text-slate-400">{user._id}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {activeTab === "resumes" && (
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <table className="w-full text-left text-sm text-slate-600">
+                                    <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-800">
+                                        <tr>
+                                            <th className="px-6 py-4">Resume</th>
+                                            <th className="px-6 py-4">User</th>
+                                            <th className="px-6 py-4">Template</th>
+                                            <th className="px-6 py-4">Public</th>
+                                            <th className="px-6 py-4">Updated</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {resumes.map((resume) => (
+                                            <tr key={resume._id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="font-medium text-slate-900">{resume.resumeName || "Untitled Resume"}</div>
+                                                    <div className="font-mono text-[11px] text-slate-400 mt-0.5">{resume._id}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="font-medium text-slate-800">{resume.userId?.name || "Unknown"}</div>
+                                                    <div className="text-xs text-slate-500">{resume.userId?.email || "No email"}</div>
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-700">{resume.templateId?.name || "No template"}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2 py-1 text-xs rounded-full font-semibold ${resume.isPublic ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                                                        {resume.isPublic ? "Public" : "Private"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-500">{new Date(resume.updatedAt).toLocaleString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
