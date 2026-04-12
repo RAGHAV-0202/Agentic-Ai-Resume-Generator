@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
     getAllUsersAPI,
     getAllResumesAPI,
+    getResumeByIdForAdminAPI,
     getAdminProfileAPI,
     uploadTemplateAPI,
     adminLogoutAPI,
@@ -12,6 +13,7 @@ import {
 import { getAllTemplates } from "../services/template.api";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Users, FileText, Upload, Trash2, LogOut, Shield, Search, Plus, X, Laptop, BarChart3, Zap, Target, MessageSquare, Activity } from "lucide-react";
+import { baseURL } from "../services/http";
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState("analytics"); // 'users' | 'resumes' | 'templates' | 'analytics'
@@ -20,6 +22,9 @@ const AdminDashboard = () => {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [showResumeModal, setShowResumeModal] = useState(false);
+    const [selectedResume, setSelectedResume] = useState(null);
+    const [resumeDetailLoading, setResumeDetailLoading] = useState(false);
     const [adminAnalytics, setAdminAnalytics] = useState(null);
     const [authChecking, setAuthChecking] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -148,6 +153,23 @@ const AdminDashboard = () => {
         } catch (error) {
             console.error("Delete failed:", error);
             alert("Failed to delete template");
+        }
+    };
+
+    const handleViewResume = async (resumeId) => {
+        setResumeDetailLoading(true);
+        setShowResumeModal(true);
+        try {
+            const res = await getResumeByIdForAdminAPI(resumeId);
+            if (res.data?.data) {
+                setSelectedResume(res.data.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch resume details:", error);
+            alert("Unable to fetch resume details");
+            setShowResumeModal(false);
+        } finally {
+            setResumeDetailLoading(false);
         }
     };
 
@@ -395,6 +417,7 @@ const AdminDashboard = () => {
                                             <th className="px-6 py-4">Template</th>
                                             <th className="px-6 py-4">Public</th>
                                             <th className="px-6 py-4">Updated</th>
+                                            <th className="px-6 py-4 text-right">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -415,6 +438,14 @@ const AdminDashboard = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-slate-500">{new Date(resume.updatedAt).toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button
+                                                        onClick={() => handleViewResume(resume._id)}
+                                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                                                    >
+                                                        View
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -452,6 +483,118 @@ const AdminDashboard = () => {
                     </>
                 )}
             </main>
+
+            {/* Resume Detail Modal */}
+            {showResumeModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800">Resume Detail</h2>
+                                {selectedResume && <p className="text-xs text-slate-500 mt-1">{selectedResume.resumeName || "Untitled Resume"}</p>}
+                            </div>
+                            <button onClick={() => { setShowResumeModal(false); setSelectedResume(null); }} className="text-slate-400 hover:text-slate-600 p-1">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            {resumeDetailLoading ? (
+                                <div className="h-48 flex items-center justify-center">
+                                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                                </div>
+                            ) : selectedResume ? (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                            <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-1">Owner</p>
+                                            <p className="text-sm font-semibold text-slate-800">{selectedResume.userId?.name || "Unknown"}</p>
+                                            <p className="text-xs text-slate-500 mt-1">{selectedResume.userId?.email || "No email"}</p>
+                                        </div>
+                                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                            <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-1">Template</p>
+                                            <p className="text-sm font-semibold text-slate-800">{selectedResume.templateId?.name || "No template"}</p>
+                                            <p className="text-xs text-slate-500 mt-1">{selectedResume.templateId?.slug || "-"}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-white border border-slate-200 rounded-xl p-4">
+                                            <p className="text-xs text-slate-500">Experience Entries</p>
+                                            <p className="text-2xl font-bold text-slate-800">{selectedResume.data?.experience?.length || 0}</p>
+                                        </div>
+                                        <div className="bg-white border border-slate-200 rounded-xl p-4">
+                                            <p className="text-xs text-slate-500">Projects</p>
+                                            <p className="text-2xl font-bold text-slate-800">{selectedResume.data?.projects?.length || 0}</p>
+                                        </div>
+                                        <div className="bg-white border border-slate-200 rounded-xl p-4">
+                                            <p className="text-xs text-slate-500">Skills (Languages)</p>
+                                            <p className="text-2xl font-bold text-slate-800">{selectedResume.data?.skills?.languages?.length || 0}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                        <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-2">Summary</p>
+                                        <p className="text-sm text-slate-700 leading-relaxed">{selectedResume.data?.summary || "No summary"}</p>
+                                    </div>
+
+                                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                                        <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                                            <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">PDF Preview</p>
+                                            {selectedResume.pdfUrl && (
+                                                <a
+                                                    href={`${baseURL}${selectedResume.pdfUrl}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                                                >
+                                                    Open PDF
+                                                </a>
+                                            )}
+                                        </div>
+                                        <div className="bg-slate-100">
+                                            {selectedResume.pdfUrl ? (
+                                                <iframe
+                                                    src={`${baseURL}${selectedResume.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                                                    title="Resume PDF Preview"
+                                                    className="w-full h-[720px] border-0 bg-white"
+                                                />
+                                            ) : (
+                                                <div className="h-40 flex items-center justify-center text-sm text-slate-500">
+                                                    No PDF available for this resume yet.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-3">
+                                        {selectedResume.pdfUrl && (
+                                            <a
+                                                href={`${baseURL}${selectedResume.pdfUrl}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                                            >
+                                                View PDF
+                                            </a>
+                                        )}
+                                        <a
+                                            href={`/resume/${selectedResume._id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-semibold transition-colors"
+                                        >
+                                            Open Share Page
+                                        </a>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-slate-500">No resume selected.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Upload Modal */}
             {showUploadModal && (

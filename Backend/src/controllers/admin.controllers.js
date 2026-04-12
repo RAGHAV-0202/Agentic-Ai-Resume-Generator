@@ -116,6 +116,20 @@ const AdminGetAllResumes = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, resumes, "All resumes fetched"));
 })
 
+const AdminGetResumeById = asyncHandler(async (req, res) => {
+    const { resumeId } = req.params;
+
+    const resume = await Resume.findById(resumeId)
+        .populate("userId", "name email")
+        .populate("templateId", "name slug");
+
+    if (!resume) {
+        throw new ApiError(404, "Resume not found");
+    }
+
+    res.status(200).json(new ApiResponse(200, resume, "Resume fetched"));
+})
+
 
 
 
@@ -125,5 +139,6 @@ export {
     adminLogout,
     AdminIsLoggedIn,
     AdminGetAllUsers,
-    AdminGetAllResumes
+    AdminGetAllResumes,
+    AdminGetResumeById
 }
