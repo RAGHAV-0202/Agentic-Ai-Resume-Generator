@@ -1,0 +1,181 @@
+%-------------------------
+% Rezume, a latex resume template for developers
+% Author : Nanu Panchamurthy
+% Adapted for Agentic AI Resume Generator
+%------------------------
+
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{verbatim}
+\usepackage{titlesec}
+\usepackage{color}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\usepackage{latexsym}
+\usepackage{marvosym}
+\usepackage[empty]{fullpage}
+\usepackage[hidelinks]{hyperref}
+\usepackage[normalem]{ulem}
+\usepackage[english]{babel}
+\input glyphtounicode
+\pdfgentounicode=1
+
+%----------FONT OPTIONS-------------------
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\urlstyle{same}
+
+%----------MARGIN OPTIONS-----------------
+\pagestyle{fancy}
+\fancyhf{}
+
+\renewcommand{\headrulewidth}{0in}
+\renewcommand{\footrulewidth}{0in}
+
+\setlength{\tabcolsep}{0in}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\topmargin}{-0.5in}
+
+\addtolength{\textwidth}{1.0in}
+\addtolength{\textheight}{1.0in}
+
+\raggedbottom{}
+\raggedright{}
+
+%--------SECTIONING COMMANDS---------
+\titleformat{\section}
+  {\scshape\large}{}
+    {0em}{\color{blue}}[\color{black}\titlerule\vspace{0pt}]
+
+%--------REDEFINITIONS----------------
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+\renewcommand{\ULdepth}{2pt}
+
+%--------CUSTOM COMMANDS--------------
+\newcommand{\resumeItem}[1]{
+  \item\small{#1}
+}
+
+\newcommand{\resumeItemListStart}{\begin{itemize}[rightmargin=0.11in]}
+\newcommand{\resumeItemListEnd}{\end{itemize}}
+
+\newcommand{\resumeTrioHeading}[3]{
+  \item\small{
+    \begin{tabular*}{0.96\textwidth}[t]{
+      l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r
+    }
+      \textbf{#1} & \textit{#2} & #3
+    \end{tabular*}
+  }
+}
+
+\newcommand{\resumeQuadHeading}[4]{
+  \item
+  \begin{tabular*}{0.96\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & #2 \\
+    \textit{\small#3} & \textit{\small #4} \\
+  \end{tabular*}
+}
+
+\newcommand{\resumeQuadHeadingChild}[2]{
+  \item
+  \begin{tabular*}{0.96\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{\small#1} & {\small#2} \\
+  \end{tabular*}
+}
+
+\newcommand{\resumeHeadingListStart}{
+  \begin{itemize}[leftmargin=0.15in, label={}]
+}
+\newcommand{\resumeHeadingListEnd}{\end{itemize}}
+
+%__________________RESUME____________________
+\begin{document}
+
+%-----------CONTACT DETAILS------------------
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+  \textbf{\Huge {{PERSONAL.NAME}} \vspace{2pt}} & % row = 1, col = 1
+  Location: {{PERSONAL.LOCATION}} \\ % row = 1, col = 2
+  {{#IF_LINKEDIN}}\href{https://{{PERSONAL.LINKEDIN}}}{\uline{LinkedIn}} $|$ {{/IF_LINKEDIN}} % row = 2, col = 1
+  {{#IF_GITHUB}}\href{https://{{PERSONAL.GITHUB}}}{\uline{GitHub}} $|$ {{/IF_GITHUB}} % row = 2, col = 1
+  {{#IF_WEBSITE}}\href{https://{{PERSONAL.WEBSITE}}}{\uline{Portfolio}}{{/IF_WEBSITE}} & % row = 2, col = 1
+  {{#IF_EMAIL}}Email: \href{mailto:{{PERSONAL.EMAIL}}}{\uline{{{PERSONAL.EMAIL}}}} $|$ {{/IF_EMAIL}} % row = 2, col = 2
+  {{#IF_PHONE}}Mobile: {{PERSONAL.PHONE}} {{/IF_PHONE}}\\ % row = 2, col = 2
+\end{tabular*}
+
+%-----------SUMMARY--------------------------
+{{#IF_SUMMARY}}
+\section{Summary}
+\small{
+  {{SUMMARY}}
+}
+{{/IF_SUMMARY}}
+
+%--------------SKILLS------------------------
+{{#IF_SKILLS}}
+\section{Technical Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     {{#IF_LANGUAGES}} \textbf{Languages}{: {{LANGUAGES}}} \\ {{/IF_LANGUAGES}}
+     {{#IF_FRAMEWORKS}} \textbf{Frameworks \& Databases}{: {{FRAMEWORKS}}} \\ {{/IF_FRAMEWORKS}}
+     {{#IF_TOOLS}} \textbf{Developer Tools}{: {{TOOLS}}} \\ {{/IF_TOOLS}}
+     {{#IF_LIBRARIES}} \textbf{Libraries}{: {{LIBRARIES}}} \\ {{/IF_LIBRARIES}}
+     {{#IF_TECHNOLOGIES_SKILLS}} \textbf{Technologies}{: {{TECHNOLOGIES_SKILLS}}} \\ {{/IF_TECHNOLOGIES_SKILLS}}
+     {{CUSTOM_SKILLS_BLOCK}}
+    }}
+\end{itemize}
+{{/IF_SKILLS}}
+
+%-----------EXPERIENCE-----------------------
+{{#IF_EXPERIENCE}}
+\section{Experience}
+\resumeHeadingListStart{}
+  {{#EXPERIENCE}}
+  \resumeQuadHeading{{{POSITION}}}{{{START_DATE}} -- {{END_DATE}}}
+  {{{COMPANY}}}{{{LOCATION}}}
+    \resumeItemListStart{}
+      {{#HIGHLIGHTS}}
+      {{/HIGHLIGHTS}}
+    \resumeItemListEnd{}
+  {{/EXPERIENCE}}
+\resumeHeadingListEnd{}
+{{/IF_EXPERIENCE}}
+
+%-----------EDUCATION-------------------------
+{{#IF_EDUCATION}}
+\section{Education}
+  \resumeHeadingListStart{}
+    {{#EDUCATION}}
+    \resumeQuadHeading{{{INSTITUTION}}}{}
+    {{{DEGREE}} {{#IF_GPA}}(GPA: {{GPA}}){{/IF_GPA}}}{{{START_DATE}} -- {{END_DATE}}}
+    {{/EDUCATION}}
+  \resumeHeadingListEnd{}
+{{/IF_EDUCATION}}
+
+%-----------PROJECTS--------------------------
+{{#IF_PROJECTS}}
+\section{Projects}
+  \resumeHeadingListStart{}
+    {{#PROJECTS}}
+    \resumeTrioHeading{{{NAME}} {{#IF_LINK}} $|$ \href{https://{{LINK}}}{\uline{Link}} {{/IF_LINK}}}{{{#IF_TECHNOLOGIES}}{{TECHNOLOGIES}}{{/IF_TECHNOLOGIES}}}{{{DATE}}}
+      \resumeItemListStart{}
+        {{#HIGHLIGHTS}}
+        {{/HIGHLIGHTS}}
+      \resumeItemListEnd{}
+    {{/PROJECTS}}
+  \resumeHeadingListEnd{}
+{{/IF_PROJECTS}}
+
+%----------------ACHIEVEMENTS----------------------
+{{#IF_ACHIEVEMENTS}}
+\section{Achievements}
+  \resumeItemListStart{}
+    {{#ACHIEVEMENTS}}
+    \item \small{{{.}}} \vspace{-2pt}
+    {{/ACHIEVEMENTS}}
+  \resumeItemListEnd{}
+{{/IF_ACHIEVEMENTS}}
+
+\end{document}
