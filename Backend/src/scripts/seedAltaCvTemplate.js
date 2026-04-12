@@ -62,7 +62,7 @@ const TEMPLATE = {
 {{#IF_EXPERIENCE}}
 \\cvsection{Experience}
   {{#EXPERIENCE}}
-  \\cvevent{ {{{POSITION}}} }{ {{{COMPANY}}} }{ {{START_DATE}} -- {{END_DATE}} }{ {{{LOCATION}}} }
+  \\cvevent{ {{{POSITION}}} }{ {{{COMPANY}}} }{ {{{LOCATION}}} }{ {{START_DATE}} -- {{END_DATE}} }
   \\begin{itemize}
     {{#HIGHLIGHTS}}
     {{/HIGHLIGHTS}}
@@ -74,7 +74,7 @@ const TEMPLATE = {
 {{#IF_PROJECTS}}
 \\cvsection{Projects}
   {{#PROJECTS}}
-  \\cvevent{ {{{NAME}}} }{ \\href{https://{{LINK}}}{Link} }{ {{DATE}} }{ {{{TECHNOLOGIES}}} }
+  \\cvevent{ {{{NAME}}} }{ \\href{https://{{LINK}}}{Link} }{ {{{TECHNOLOGIES}}} }{ {{DATE}} }
   \\begin{itemize}
     {{#HIGHLIGHTS}}
     {{/HIGHLIGHTS}}
@@ -88,7 +88,7 @@ const TEMPLATE = {
 {{#IF_EDUCATION}}
 \\cvsection{Education}
   {{#EDUCATION}}
-  \\cvevent{ {{{DEGREE}}} }{ {{{INSTITUTION}}} }{ {{START_DATE}} -- {{END_DATE}} }{ {{#IF_GPA}}GPA: {{GPA}}{{/IF_GPA}} }
+  \\cvevent{ {{{DEGREE}}} }{ {{{INSTITUTION}}} }{}{ {{START_DATE}} -- {{END_DATE}} {{#IF_GPA}} $|$ GPA: {{GPA}}{{/IF_GPA}} }
     {{#IF_COURSEWORK}}Coursework: {{COURSEWORK}}{{/IF_COURSEWORK}}
   \\divider
   {{/EDUCATION}}
@@ -114,7 +114,7 @@ const TEMPLATE = {
 {{#IF_PUBLICATIONS}}
 \\cvsection{Publications}
   {{#PUBLICATIONS}}
-  \\cvevent{ {{{TITLE}}} }{ {{{AUTHORS}}} }{ {{DATE}} }{ {{#IF_DOI}}DOI: {{DOI}}{{/IF_DOI}} }
+  \\cvevent{ {{{TITLE}}} }{ {{{AUTHORS}}} }{}{ {{DATE}} {{#IF_DOI}} $|$ DOI: {{DOI}}{{/IF_DOI}} }
   \\divider
   {{/PUBLICATIONS}}
 {{/IF_PUBLICATIONS}}

@@ -76,6 +76,15 @@ const hasMeaningfulProject = (project = {}) => {
   );
 };
 
+const hasMeaningfulPublication = (pub = {}) => {
+  return (
+    hasMeaningfulText(pub.title) ||
+    hasMeaningfulText(pub.authors) ||
+    hasMeaningfulText(pub.date) ||
+    hasMeaningfulText(pub.doi)
+  );
+};
+
 /**
  * Replace simple placeholders like {{PERSONAL.NAME}}
  */
@@ -193,6 +202,15 @@ const handleConditionals = (latex, data) => {
     result = result.replace(/{{\/IF_PROJECTS}}/g, "");
   } else {
     result = result.replace(/{{#IF_PROJECTS}}[\s\S]*?{{\/IF_PROJECTS}}/g, "");
+  }
+
+  // Publications section conditional
+  const publicationEntries = (data.publications || []).filter(hasMeaningfulPublication);
+  if (publicationEntries.length > 0) {
+    result = result.replace(/{{#IF_PUBLICATIONS}}/g, "");
+    result = result.replace(/{{\/IF_PUBLICATIONS}}/g, "");
+  } else {
+    result = result.replace(/{{#IF_PUBLICATIONS}}[\s\S]*?{{\/IF_PUBLICATIONS}}/g, "");
   }
 
   // Skills section conditional
@@ -383,6 +401,40 @@ const populateProjects = (latex, projectsArray) => {
   });
 
   return latex.replace(blockRegex, projectsLatex);
+};
+
+const populatePublications = (latex, publicationsArray) => {
+  const blockRegex = /{{#PUBLICATIONS}}([\s\S]*?){{\/PUBLICATIONS}}/;
+  const match = latex.match(blockRegex);
+  const validPublications = (publicationsArray || []).filter(hasMeaningfulPublication);
+
+  if (!match || validPublications.length === 0) {
+    return latex.replace(blockRegex, "");
+  }
+
+  const blockTemplate = match[1];
+  let publicationsLatex = "";
+
+  validPublications.forEach((pub) => {
+    let block = blockTemplate;
+
+    block = block.replace(/{{TITLE}}/g, escapeLatex(pub.title || ""));
+    block = block.replace(/{{AUTHORS}}/g, escapeLatex(pub.authors || ""));
+    block = block.replace(/{{DATE}}/g, escapeLatex(pub.date || ""));
+
+    // Handle DOI conditional
+    if (pub.doi && pub.doi.trim() !== "" && pub.doi !== "_skipped") {
+      block = block.replace(/{{#IF_DOI}}/g, "");
+      block = block.replace(/{{\/IF_DOI}}/g, "");
+      block = block.replace(/{{DOI}}/g, escapeLatex(pub.doi));
+    } else {
+      block = block.replace(/{{#IF_DOI}}[\s\S]*?{{\/IF_DOI}}/g, "");
+    }
+
+    publicationsLatex += block;
+  });
+
+  return latex.replace(blockRegex, publicationsLatex);
 };
 
 /**
@@ -594,6 +646,7 @@ export const generateLatex = (templateString, resumeData) => {
   latex = populateProjects(latex, resumeData.projects);
   latex = populateSkills(latex, resumeData.skills);
   latex = populateAchievements(latex, resumeData.achievements);
+  latex = populatePublications(latex, resumeData.publications);
 
   // Step 4: Populate custom sections (before cleanup)
   latex = populateCustomSections(latex, resumeData.customSections);
