@@ -32,6 +32,7 @@ const AdminDashboard = () => {
     const navigate = useNavigate();
 
     // Template Form State
+    const [editingTemplateId, setEditingTemplateId] = useState(null);
     const [newTemplate, setNewTemplate] = useState({
         name: "",
         slug: "",
@@ -116,34 +117,43 @@ const AdminDashboard = () => {
         formData.append("description", newTemplate.description);
         formData.append("latexTemplate", newTemplate.latexTemplate);
 
-        // Convert comma strings to arrays? Backend expects arrays for requiredFields?
-        // Let's assume backend parsing or we send JSON string if needed.
-        // Actually backend schema says [String]. FormData sends strings.
-        // We might need to append multiple times or rely on backend handling.
-        // Let's just send them as is for now and see, or better:
-        // No, backend probably expects JSON body usually, but with multer it's formData.
-        // Mongoose might not auto-split strings to array.
-        // Let's rely on backend logic update later if needed, but standard FormData array handling:
-        // formData.append("requiredFields", ...);
-        // Simplest: just send basic fields first.
-
         if (thumbnailFile) {
             formData.append("thumbnail", thumbnailFile);
         }
 
         try {
-            await uploadTemplateAPI(formData);
+            if (editingTemplateId) {
+                await updateTemplateAPI(editingTemplateId, formData);
+                alert("Template updated successfully!");
+            } else {
+                await uploadTemplateAPI(formData);
+                alert("Template created successfully!");
+            }
             setShowUploadModal(false);
             fetchData(); // Refresh list
             setNewTemplate({ name: "", slug: "", description: "", latexTemplate: "", requiredFields: "", optionalFields: "" });
             setThumbnailFile(null);
-            alert("Template created successfully!");
+            setEditingTemplateId(null);
         } catch (error) {
             console.error("Upload failed:", error);
-            alert("Failed to upload template: " + (error.response?.data?.message || error.message));
+            alert("Failed to save template: " + (error.response?.data?.message || error.message));
         } finally {
             setUploading(false);
         }
+    };
+
+    const handleEditTemplateClick = (template) => {
+        setEditingTemplateId(template._id);
+        setNewTemplate({
+            name: template.name || "",
+            slug: template.slug || "",
+            description: template.description || "",
+            latexTemplate: template.latexTemplate || "",
+            requiredFields: template.requiredFields || "",
+            optionalFields: template.optionalFields || "",
+        });
+        setThumbnailFile(null); // Keep old image if a new one is not selected
+        setShowUploadModal(true);
     };
 
     const handleDeleteTemplate = async (id) => {
@@ -258,7 +268,12 @@ const AdminDashboard = () => {
 
                     {activeTab === "templates" && (
                         <button
-                            onClick={() => setShowUploadModal(true)}
+                            onClick={() => {
+                                setEditingTemplateId(null);
+                                setNewTemplate({ name: "", slug: "", description: "", latexTemplate: "", requiredFields: "", optionalFields: "" });
+                                setThumbnailFile(null);
+                                setShowUploadModal(true);
+                            }}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors shadow-sm"
                         >
                             <Upload size={18} />
@@ -472,10 +487,18 @@ const AdminDashboard = () => {
                                                 alt={template.name}
                                                 className="w-full h-full object-cover"
                                             />
-                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                                                <button
+                                                    onClick={() => handleEditTemplateClick(template)}
+                                                    className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
+                                                    title="Edit Template"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+                                                </button>
                                                 <button
                                                     onClick={() => handleDeleteTemplate(template._id)}
                                                     className="p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                                                    title="Delete Template"
                                                 >
                                                     <Trash2 size={18} />
                                                 </button>
@@ -610,7 +633,7 @@ const AdminDashboard = () => {
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                            <h2 className="text-xl font-bold text-slate-800">New Template</h2>
+                            <h2 className="text-xl font-bold text-slate-800">{editingTemplateId ? "Edit Template" : "New Template"}</h2>
                             <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
                                 <X size={24} />
                             </button>
@@ -695,7 +718,7 @@ const AdminDashboard = () => {
                                     className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {uploading && <Loader2 size={16} className="animate-spin" />}
-                                    {uploading ? "Uploading..." : "Create Template"}
+                                    {uploading ? "Saving..." : (editingTemplateId ? "Update Template" : "Create Template")}
                                 </button>
                             </div>
                         </form>
