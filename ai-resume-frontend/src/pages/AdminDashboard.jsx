@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
     getAllUsersAPI,
     getAllResumesAPI,
+    getAdminProfileAPI,
     uploadTemplateAPI,
     adminLogoutAPI,
     deleteTemplateAPI,
@@ -20,6 +21,8 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [adminAnalytics, setAdminAnalytics] = useState(null);
+    const [authChecking, setAuthChecking] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
     const navigate = useNavigate();
 
     // Template Form State
@@ -35,8 +38,26 @@ const AdminDashboard = () => {
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
-        fetchData();
-    }, [activeTab]);
+        const verifyAdmin = async () => {
+            try {
+                await getAdminProfileAPI();
+                setIsAuthenticated(true);
+            } catch (error) {
+                localStorage.removeItem('adminAccessToken');
+                navigate('/admin/login');
+            } finally {
+                setAuthChecking(false);
+            }
+        };
+
+        verifyAdmin();
+    }, [navigate]);
+
+    useEffect(() => {
+        if (!authChecking && isAuthenticated) {
+            fetchData();
+        }
+    }, [activeTab, authChecking, isAuthenticated]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -131,6 +152,11 @@ const AdminDashboard = () => {
     };
 
     return (
+        authChecking ? (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+            </div>
+        ) : (
         <div className="min-h-screen bg-slate-50 flex font-sans">
             {/* Sidebar */}
             <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full z-10">
@@ -525,6 +551,7 @@ const AdminDashboard = () => {
                 </div>
             )}
         </div>
+        )
     );
 };
 
